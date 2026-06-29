@@ -24,7 +24,7 @@ const MAX_SIDEBAR_ITEMS = 500;
 function ToolbarControls({
   trackers, trackerId, setTrackerId, from, setFrom, to, setTo, setDateWindow,
   mode, types, toggleType, dateWindow, applyDateWindow, loadData, loading,
-  setMode, track, speed, setSpeed,
+  setMode,
 }) {
   return (
     <>
@@ -89,19 +89,6 @@ function ToolbarControls({
       <button type="button" className="secondary" onClick={loadData} disabled={loading || mode === 'live'}>
         {loading ? 'Loading…' : 'Reload'}
       </button>
-
-      {mode === 'replay' && (
-        <label>
-          Speed
-          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-            <option value={1}>1x</option>
-            <option value={2}>2x</option>
-            <option value={4}>4x</option>
-            <option value={8}>8x</option>
-            <option value={16}>16x</option>
-          </select>
-        </label>
-      )}
     </>
   );
 }
@@ -270,6 +257,10 @@ export default function App() {
     return () => clearInterval(id);
   }, [playing, track.length, speed]);
 
+  useEffect(() => {
+    if (mode === 'live') setPlaying(false);
+  }, [mode]);
+
   const replayTrack = useMemo(
     () => (mode === 'live' ? track : track.slice(0, frame + 1)),
     [mode, track, frame]
@@ -351,7 +342,7 @@ export default function App() {
   const toolbarProps = {
     trackers, trackerId, setTrackerId, from, setFrom, to, setTo, setDateWindow,
     mode, types, toggleType, dateWindow, applyDateWindow, loadData, loading,
-    setMode, track, speed, setSpeed,
+    setMode,
   };
 
   const eventsProps = {
@@ -450,6 +441,18 @@ export default function App() {
             >
               {playing ? '⏸' : '▶'}
             </button>
+            <select
+              className="speed-select"
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              aria-label="Playback speed"
+            >
+              <option value={1}>1x</option>
+              <option value={2}>2x</option>
+              <option value={4}>4x</option>
+              <option value={8}>8x</option>
+              <option value={16}>16x</option>
+            </select>
             <input
               className="timeline"
               type="range"

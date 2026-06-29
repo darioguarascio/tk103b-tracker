@@ -265,6 +265,19 @@ html, body, #root {
 
 .play-btn:hover { background: var(--accent-dim); }
 
+.speed-select {
+  flex-shrink: 0;
+  width: 52px;
+  height: 36px;
+  padding: 0 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .timeline {
   flex: 1;
   min-width: 0;
