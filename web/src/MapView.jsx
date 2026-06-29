@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { eventColor } from './api';
+import { segmentTrack } from './geo';
 
 const carIcon = L.divIcon({
   className: 'car-marker',
@@ -41,7 +42,18 @@ export default function MapView({ track, events, current, followLive }) {
     markerRef.current = L.marker([45.46, 9.19], { icon: carIcon }).addTo(map);
 
     mapRef.current = map;
+
+    const resize = () => {
+      map.invalidateSize();
+    };
+    const ro = new ResizeObserver(resize);
+    ro.observe(containerRef.current);
+    window.addEventListener('orientationchange', resize);
+    setTimeout(resize, 100);
+
     return () => {
+      ro.disconnect();
+      window.removeEventListener('orientationchange', resize);
       map.remove();
       mapRef.current = null;
     };
@@ -53,11 +65,14 @@ export default function MapView({ track, events, current, followLive }) {
     if (!map || !trackLayer) return;
 
     trackLayer.clearLayers();
-    if (track.length < 2) return;
+    const segments = segmentTrack(track);
 
-    const latlngs = track.map((p) => [p.lat, p.lng]);
-    L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(trackLayer);
-    L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(trackLayer);
+    for (const seg of segments) {
+      if (seg.length < 2) continue;
+      const latlngs = seg.map((p) => [p.lat, p.lng]);
+      L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(trackLayer);
+      L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(trackLayer);
+    }
   }, [track]);
 
   useEffect(() => {
@@ -89,6 +104,7 @@ export default function MapView({ track, events, current, followLive }) {
     const bounds = L.latLngBounds(track.map((p) => [p.lat, p.lng]));
     if (bounds.isValid() && !followLive) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+      setTimeout(() => map.invalidateSize(), 50);
     }
   }, [track, followLive]);
 

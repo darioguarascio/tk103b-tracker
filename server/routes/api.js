@@ -1,5 +1,6 @@
 const express = require('express');
 const { query } = require('../db');
+const { filterPlausiblePositions, isPlausibleStep } = require('../geo');
 
 const router = express.Router();
 
@@ -79,7 +80,7 @@ router.get('/track', async (req, res) => {
     ORDER BY c.gps_time ASC
     LIMIT 50000
   `, params);
-  res.json(rows);
+  res.json(filterPlausiblePositions(rows));
 });
 
 router.get('/events', async (req, res) => {
@@ -116,7 +117,7 @@ router.get('/events', async (req, res) => {
     ORDER BY c.gps_time DESC
     LIMIT 5000
   `, params);
-  res.json(rows);
+  res.json(filterPlausiblePositions([...rows].reverse()).reverse());
 });
 
 router.get('/stats', async (req, res) => {
@@ -161,6 +162,7 @@ router.get('/live', async (req, res) => {
 
   const trackerId = req.query.tracker_id;
   let lastId = parseInt(req.query.since_id || '0', 10);
+  let lastSent = null;
 
   const send = (row) => {
     res.write(`data: ${JSON.stringify(row)}\n\n`);
@@ -186,7 +188,9 @@ router.get('/live', async (req, res) => {
 
       for (const row of rows) {
         lastId = row.id;
+        if (row.type === 'move' && lastSent && !isPlausibleStep(lastSent, row)) continue;
         send(row);
+        if (row.lat != null && row.lng != null) lastSent = row;
       }
     } catch (err) {
       console.error('live poll error', err);

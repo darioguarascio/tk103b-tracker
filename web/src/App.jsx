@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './MapView';
 import { ALL_TYPES, eventColor, fetchJson, fmtShort, fmtTime } from './api';
+import { DATE_WINDOWS, isPlausibleStep, windowRange } from './geo';
 
 function toInputValue(iso) {
   if (!iso) return '';
@@ -29,7 +30,9 @@ export default function App() {
   const [speed, setSpeed] = useState(4);
   const [loading, setLoading] = useState(false);
   const [livePos, setLivePos] = useState(null);
+  const [dateWindow, setDateWindow] = useState('');
   const liveRef = useRef(null);
+  const liveLastRef = useRef(null);
 
   useEffect(() => {
     fetchJson('/api/trackers').then((rows) => {
@@ -90,8 +93,11 @@ export default function App() {
 
     es.onmessage = (e) => {
       const row = JSON.parse(e.data);
-      setLivePos(row);
       if (row.type === 'move') {
+        const last = liveLastRef.current;
+        if (last && !isPlausibleStep(last, row)) return;
+        liveLastRef.current = row;
+        setLivePos(row);
         setTrack((prev) => {
           const next = [...prev, row];
           return next.length > 500 ? next.slice(-500) : next;
@@ -101,8 +107,13 @@ export default function App() {
       }
     };
 
+    liveLastRef.current = null;
+
     fetchJson(`/api/positions/latest?tracker_id=${trackerId}`).then((rows) => {
-      if (rows[0]) setLivePos(rows[0]);
+      if (rows[0]) {
+        liveLastRef.current = rows[0];
+        setLivePos(rows[0]);
+      }
     });
 
     return () => es.close();
@@ -139,6 +150,13 @@ export default function App() {
     });
   };
 
+  const applyDateWindow = (days, id) => {
+    const { start, end } = windowRange(days, range?.max_time, range?.min_time);
+    setFrom(toInputValue(start.toISOString()));
+    setTo(toInputValue(end.toISOString()));
+    setDateWindow(id);
+  };
+
   const tracker = trackers.find((t) => String(t.id) === String(trackerId));
 
   return (
@@ -155,12 +173,26 @@ export default function App() {
 
         <label>
           From
-          <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} disabled={mode === 'live'} />
+          <input type="datetime-local" value={from} onChange={(e) => { setFrom(e.target.value); setDateWindow(''); }} disabled={mode === 'live'} />
         </label>
         <label>
           To
-          <input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} disabled={mode === 'live'} />
+          <input type="datetime-local" value={to} onChange={(e) => { setTo(e.target.value); setDateWindow(''); }} disabled={mode === 'live'} />
         </label>
+
+        <div className="date-windows">
+          {DATE_WINDOWS.map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              className={`window-chip ${dateWindow === w.id ? 'on' : ''}`}
+              onClick={() => applyDateWindow(w.days, w.id)}
+              disabled={mode === 'live'}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
 
         <div className="type-filters">
           {ALL_TYPES.map((type) => (
