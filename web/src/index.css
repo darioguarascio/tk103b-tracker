@@ -324,6 +324,7 @@ html, body, #root {
     background: var(--surface);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
     animation: slideInLeft 0.2s ease;
   }
@@ -353,21 +354,42 @@ html, body, #root {
   .drawer-body.toolbar {
     display: flex;
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
+    align-content: flex-start;
     padding: 16px;
+    gap: 14px;
+    overflow-x: hidden;
     overflow-y: auto;
     flex: 1;
+    min-width: 0;
     -webkit-overflow-scrolling: touch;
   }
 
-  .drawer-body.toolbar label,
-  .drawer-body.toolbar .type-filters {
+  .drawer-body.toolbar > label,
+  .drawer-body.toolbar > button {
     width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .drawer-body.toolbar .type-filters {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .drawer-body.toolbar .type-chip {
+    width: 100%;
+    text-align: center;
+    padding: 10px 12px;
   }
 
   .drawer-body.toolbar input,
   .drawer-body.toolbar select {
     width: 100%;
+    box-sizing: border-box;
   }
 
   .drawer-body.toolbar button {
