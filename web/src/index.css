@@ -241,10 +241,39 @@ html, body, #root {
 .status-bar .stat { color: var(--muted); }
 .status-bar .stat strong { color: var(--text); }
 
-.timeline {
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex: 1;
   min-width: 200px;
+}
+
+.play-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.play-btn:hover { background: var(--accent-dim); }
+
+.timeline {
+  flex: 1;
+  min-width: 0;
   accent-color: var(--accent);
+}
+
+.frame-counter {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .leaflet-container { background: #1a2332; font-family: inherit; }
@@ -407,11 +436,11 @@ html, body, #root {
     display: none;
   }
 
-  .timeline {
-    min-width: 0;
-    flex: 1;
+  .replay-controls {
     order: -1;
+    flex: 1 1 100%;
     width: 100%;
+    min-width: 0;
   }
 }
 

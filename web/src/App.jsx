@@ -24,7 +24,7 @@ const MAX_SIDEBAR_ITEMS = 500;
 function ToolbarControls({
   trackers, trackerId, setTrackerId, from, setFrom, to, setTo, setDateWindow,
   mode, types, toggleType, dateWindow, applyDateWindow, loadData, loading,
-  setMode, playing, setPlaying, track, speed, setSpeed,
+  setMode, track, speed, setSpeed,
 }) {
   return (
     <>
@@ -91,21 +91,16 @@ function ToolbarControls({
       </button>
 
       {mode === 'replay' && (
-        <>
-          <button type="button" onClick={() => setPlaying((p) => !p)} disabled={track.length === 0}>
-            {playing ? 'Pause' : 'Play'}
-          </button>
-          <label>
-            Speed
-            <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-              <option value={1}>1x</option>
-              <option value={2}>2x</option>
-              <option value={4}>4x</option>
-              <option value={8}>8x</option>
-              <option value={16}>16x</option>
-            </select>
-          </label>
-        </>
+        <label>
+          Speed
+          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+            <option value={1}>1x</option>
+            <option value={2}>2x</option>
+            <option value={4}>4x</option>
+            <option value={8}>8x</option>
+            <option value={16}>16x</option>
+          </select>
+        </label>
       )}
     </>
   );
@@ -356,7 +351,7 @@ export default function App() {
   const toolbarProps = {
     trackers, trackerId, setTrackerId, from, setFrom, to, setTo, setDateWindow,
     mode, types, toggleType, dateWindow, applyDateWindow, loadData, loading,
-    setMode, playing, setPlaying, track, speed, setSpeed,
+    setMode, track, speed, setSpeed,
   };
 
   const eventsProps = {
@@ -446,7 +441,15 @@ export default function App() {
           <span className="stat">No position data</span>
         )}
         {mode === 'replay' && track.length > 0 && (
-          <>
+          <div className="replay-controls">
+            <button
+              type="button"
+              className="play-btn"
+              onClick={() => setPlaying((p) => !p)}
+              aria-label={playing ? 'Pause' : 'Play'}
+            >
+              {playing ? '⏸' : '▶'}
+            </button>
             <input
               className="timeline"
               type="range"
@@ -455,8 +458,8 @@ export default function App() {
               value={frame}
               onChange={(e) => { setFrame(Number(e.target.value)); setPlaying(false); }}
             />
-            <span className="stat">{frame + 1} / {track.length}</span>
-          </>
+            <span className="stat frame-counter">{frame + 1} / {track.length}</span>
+          </div>
         )}
         {windowStats && (
           <span className="stat">
