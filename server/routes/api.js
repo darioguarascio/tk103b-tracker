@@ -139,17 +139,28 @@ router.get('/stats', async (req, res) => {
 });
 
 router.get('/range', async (req, res) => {
-  const trackerId = req.query.tracker_id;
+  const { tracker_id, from, to } = req.query;
   const params = [];
-  let filter = '';
-  if (trackerId) {
-    params.push(trackerId);
-    filter = 'WHERE tracker_id = $1';
+  const conditions = [];
+
+  if (tracker_id) {
+    params.push(tracker_id);
+    conditions.push(`tracker_id = $${params.length}`);
   }
+  if (from) {
+    params.push(from);
+    conditions.push(`gps_time >= $${params.length}`);
+  }
+  if (to) {
+    params.push(to);
+    conditions.push(`gps_time <= $${params.length}`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await query(`
     SELECT min(gps_time) AS min_time, max(gps_time) AS max_time, count(*)::int AS total
-    FROM car ${filter}
+    FROM car ${where}
   `, params);
   res.json(rows[0]);
 });
