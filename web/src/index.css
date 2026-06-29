@@ -29,6 +29,77 @@ html, body, #root {
   overflow: hidden;
 }
 
+.mobile-header {
+  display: none;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.icon-btn.on {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.hamburger {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text);
+  position: relative;
+}
+
+.hamburger::before,
+.hamburger::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 18px;
+  height: 2px;
+  background: var(--text);
+}
+
+.hamburger::before { top: -6px; }
+.hamburger::after { top: 6px; }
+
+.drawer-overlay,
+.events-overlay {
+  display: none;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drawer-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.drawer-body {
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+.desktop-only {
+  display: flex;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -212,18 +283,146 @@ html, body, #root {
 .marker-acc { background: var(--warn); }
 
 @media (max-width: 900px) {
+  .app {
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .mobile-title {
+    font-weight: 600;
+    font-size: 15px;
+    flex: 1;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .events-toggle {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
   .main {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(50dvh, 1fr) minmax(180px, 35dvh);
-  }
-  .map-wrap {
-    min-height: 50dvh;
-  }
-  .sidebar {
-    border-left: none;
-    border-top: 1px solid var(--border);
+    grid-template-rows: 1fr;
     min-height: 0;
   }
+
+  .map-wrap {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .drawer-overlay,
+  .events-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(320px, 88vw);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+    animation: slideInLeft 0.2s ease;
+  }
+
+  .events-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 70dvh;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+    animation: slideInUp 0.2s ease;
+  }
+
+  .events-panel .event-list {
+    overflow-y: auto;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .drawer-body.toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .drawer-body.toolbar label,
+  .drawer-body.toolbar .date-windows,
+  .drawer-body.toolbar .type-filters {
+    width: 100%;
+  }
+
+  .drawer-body.toolbar input,
+  .drawer-body.toolbar select {
+    width: 100%;
+  }
+
+  .drawer-body.toolbar button {
+    width: 100%;
+  }
+
+  .status-bar {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .status-bar .stat:not(:first-child):not(:last-child) {
+    display: none;
+  }
+
+  .timeline {
+    min-width: 0;
+    flex: 1;
+    order: -1;
+    width: 100%;
+  }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .login-screen {
