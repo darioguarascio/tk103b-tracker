@@ -267,6 +267,8 @@ html, body, #root {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    position: relative;
+    z-index: 1100;
   }
 
   .mobile-title {
@@ -284,7 +286,7 @@ html, body, #root {
     white-space: nowrap;
   }
 
-  .toolbar {
+  header.toolbar {
     display: none;
   }
 
@@ -308,7 +310,7 @@ html, body, #root {
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 1000;
+    z-index: 3000;
     background: rgba(0, 0, 0, 0.5);
   }
 
@@ -318,6 +320,7 @@ html, body, #root {
     left: 0;
     bottom: 0;
     width: min(320px, 88vw);
+    z-index: 3001;
     background: var(--surface);
     display: flex;
     flex-direction: column;
@@ -330,6 +333,7 @@ html, body, #root {
     left: 0;
     right: 0;
     bottom: 0;
+    z-index: 3001;
     max-height: 70dvh;
     background: var(--surface);
     display: flex;
@@ -347,9 +351,13 @@ html, body, #root {
   }
 
   .drawer-body.toolbar {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
     padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
   }
 
   .drawer-body.toolbar label,
