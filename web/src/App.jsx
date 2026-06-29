@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './MapView';
 import { ALL_TYPES, eventColor, fetchJson, fmtShort, fmtTime } from './api';
-import { DATE_WINDOWS, isPlausibleStep, windowRange } from './geo';
+import { DATE_WINDOWS, isPlausibleStep, isStationaryMove, windowRange } from './geo';
 
 function toInputValue(iso) {
   if (!iso) return '';
@@ -232,6 +232,7 @@ export default function App() {
     es.onmessage = (e) => {
       const row = JSON.parse(e.data);
       if (row.type === 'move') {
+        if (isStationaryMove(row)) return;
         const last = liveLastRef.current;
         if (last && !isPlausibleStep(last, row)) return;
         liveLastRef.current = row;

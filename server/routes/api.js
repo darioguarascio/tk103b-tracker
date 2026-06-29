@@ -1,6 +1,6 @@
 const express = require('express');
 const { query } = require('../db');
-const { filterPlausiblePositions, isPlausibleStep } = require('../geo');
+const { filterPlausiblePositions, isPlausibleStep, isStationaryMove } = require('../geo');
 
 const router = express.Router();
 
@@ -199,6 +199,7 @@ router.get('/live', async (req, res) => {
 
       for (const row of rows) {
         lastId = row.id;
+        if (row.type === 'move' && isStationaryMove(row)) continue;
         if (row.type === 'move' && lastSent && !isPlausibleStep(lastSent, row)) continue;
         send(row);
         if (row.lat != null && row.lng != null) lastSent = row;

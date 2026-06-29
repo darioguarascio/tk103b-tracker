@@ -18,6 +18,10 @@ function haversineKm(a, b) {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
 }
 
+export function isStationaryMove(point) {
+  return point.type === 'move' && Number(point.speed ?? 0) <= 0;
+}
+
 export function isPlausibleStep(prev, curr) {
   const dist = haversineKm(prev, curr);
   const dtMs = new Date(curr.gps_time).getTime() - new Date(prev.gps_time).getTime();
@@ -33,9 +37,11 @@ export function isPlausibleStep(prev, curr) {
 export function filterPlausiblePositions(points) {
   if (!points?.length) return [];
 
-  const sorted = [...points].sort(
-    (a, b) => new Date(a.gps_time).getTime() - new Date(b.gps_time).getTime()
-  );
+  const sorted = [...points]
+    .filter((p) => !isStationaryMove(p))
+    .sort((a, b) => new Date(a.gps_time).getTime() - new Date(b.gps_time).getTime());
+
+  if (!sorted.length) return [];
 
   const kept = [sorted[0]];
   for (let i = 1; i < sorted.length; i++) {

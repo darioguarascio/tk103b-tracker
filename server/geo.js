@@ -31,12 +31,18 @@ function isPlausibleStep(prev, curr) {
   return impliedSpeed <= MAX_IMPLIED_SPEED_KMH;
 }
 
+function isStationaryMove(point) {
+  return point.type === 'move' && Number(point.speed ?? 0) <= 0;
+}
+
 function filterPlausiblePositions(points) {
   if (!points?.length) return [];
 
-  const sorted = [...points].sort(
-    (a, b) => new Date(a.gps_time).getTime() - new Date(b.gps_time).getTime()
-  );
+  const sorted = [...points]
+    .filter((p) => !isStationaryMove(p))
+    .sort((a, b) => new Date(a.gps_time).getTime() - new Date(b.gps_time).getTime());
+
+  if (!sorted.length) return [];
 
   const kept = [sorted[0]];
   for (let i = 1; i < sorted.length; i++) {
@@ -66,4 +72,4 @@ function segmentTrack(points) {
   return segments;
 }
 
-module.exports = { filterPlausiblePositions, segmentTrack, haversineKm, isPlausibleStep };
+module.exports = { filterPlausiblePositions, segmentTrack, haversineKm, isPlausibleStep, isStationaryMove };
