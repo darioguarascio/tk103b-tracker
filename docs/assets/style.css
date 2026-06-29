@@ -366,13 +366,46 @@ td { color: var(--muted); }
 
 .ui-status strong { color: var(--text); }
 
+.ui-replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 100%;
+  min-width: 200px;
+}
+
+.ui-play-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: default;
+}
+
+.ui-speed-select {
+  flex-shrink: 0;
+  width: 44px;
+  height: 28px;
+  padding: 0 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  font-size: 10px;
+}
+
 .ui-timeline {
   flex: 1;
-  min-width: 120px;
+  min-width: 80px;
   height: 4px;
   background: var(--border);
   border-radius: 2px;
-  align-self: center;
 }
 
 .ui-timeline-fill {

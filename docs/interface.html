@@ -36,8 +36,16 @@
             <select><option>Tracker 868683023262094</option></select>
           </div>
           <div class="ui-field">
+            <label>Mode</label>
+            <select><option>Replay</option><option>Live</option></select>
+          </div>
+          <div class="ui-field">
+            <label>Range</label>
+            <select><option>Last week</option></select>
+          </div>
+          <div class="ui-field">
             <label>From</label>
-            <input type="text" value="2026-06-01 08:00" readonly />
+            <input type="text" value="2026-06-22 08:00" readonly />
           </div>
           <div class="ui-field">
             <label>To</label>
@@ -48,9 +56,6 @@
           <span class="ui-chip on">acc on</span>
           <span class="ui-chip">sensor alarm</span>
           <button class="ui-btn ui-btn-muted">Reload</button>
-          <button class="ui-btn ui-btn-muted">Replay</button>
-          <button class="ui-btn ui-btn-success">Live ●</button>
-          <button class="ui-btn ui-btn-primary">Play</button>
         </div>
         <div class="ui-body">
           <div class="ui-map">
@@ -83,8 +88,12 @@
           <span>Speed: <strong>48 km/h</strong></span>
           <span>Heading: <strong>127°</strong></span>
           <span>Type: <strong>move</strong></span>
-          <div class="ui-timeline"><div class="ui-timeline-fill"></div></div>
-          <span>412 / 1840</span>
+          <div class="ui-replay-controls">
+            <button class="ui-play-btn" type="button" aria-hidden="true">▶</button>
+            <select class="ui-speed-select" aria-hidden="true"><option>4x</option></select>
+            <div class="ui-timeline"><div class="ui-timeline-fill"></div></div>
+            <span>412 / 1840</span>
+          </div>
         </div>
       </div>
     </section>
@@ -93,12 +102,25 @@
       <h2>Toolbar</h2>
       <ul>
         <li><strong>Tracker</strong> — select which IMEI to view</li>
+        <li><strong>Mode</strong> — <code>Replay</code> (historical data) or <code>Live</code> (real-time SSE stream)</li>
+        <li><strong>Range</strong> — date presets (last day, week, month, …) or <code>Custom</code> with manual from/to</li>
         <li><strong>From / To</strong> — datetime range for replay (disabled in Live mode)</li>
         <li><strong>Event chips</strong> — toggle which event types to load and show on the map</li>
         <li><strong>Reload</strong> — fetch track + events for the selected range</li>
-        <li><strong>Replay / Live</strong> — switch between historical playback and real-time SSE stream</li>
-        <li><strong>Play / Speed</strong> — animate replay at 1×–16× (replay mode only)</li>
       </ul>
+      <p>On desktop the toolbar is always visible. On mobile it moves into a slide-out <strong>Controls</strong> drawer (☰ menu).</p>
+    </section>
+
+    <section class="section">
+      <h2>Playback bar</h2>
+      <p>In replay mode, a video-player-style control row appears in the status bar (not in the toolbar):</p>
+      <ul>
+        <li><strong>Play / Pause</strong> — animate through <code>move</code> points</li>
+        <li><strong>Speed</strong> — 1×, 2×, 4×, 8×, or 16×</li>
+        <li><strong>Timeline slider</strong> — scrub to any frame; pauses playback</li>
+        <li><strong>Frame counter</strong> — current position / total points</li>
+      </ul>
+      <p>Playback controls are hidden in Live mode.</p>
     </section>
 
     <section class="section">
@@ -106,7 +128,7 @@
       <ul>
         <li>Blue polyline — <code>move</code> track; dashed overlay for depth</li>
         <li>Blue dot — current position (replay frame or live update)</li>
-        <li>Coloured dots — events (alarms, acc on/off, etc.); click for popup with time and speed</li>
+        <li>Coloured dots — events (alarms, acc on/off, etc.); click for popup with time and speed (at zoom ≥14)</li>
         <li>Auto fit-bounds when loading a track; live mode pans to follow the vehicle</li>
       </ul>
     </section>
@@ -114,9 +136,19 @@
     <section class="section">
       <h2>Sidebar &amp; status bar</h2>
       <ul>
-        <li><strong>Event list</strong> — click an event in replay mode to jump the timeline to that moment</li>
-        <li><strong>Status bar</strong> — current time, speed, heading, event type, point count, last seen</li>
-        <li><strong>Timeline slider</strong> — scrub through replay frames manually</li>
+        <li><strong>Event list</strong> — non-move events only; click in replay mode to jump the timeline to that moment</li>
+        <li><strong>Status bar</strong> — current time, speed, heading, event type, window point count, last seen</li>
+        <li><strong>Playback bar</strong> — play, speed, and timeline scrubber (replay only; see above)</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Mobile</h2>
+      <ul>
+        <li><strong>Header</strong> — ☰ opens Controls drawer; <strong>Events</strong> opens a bottom sheet</li>
+        <li><strong>Map</strong> — full screen; sidebar hidden</li>
+        <li><strong>Controls drawer</strong> — same fields as the desktop toolbar, stacked in a column</li>
+        <li><strong>Playback bar</strong> — pinned to the footer, full width above position stats</li>
       </ul>
     </section>
 

@@ -100,10 +100,10 @@ npm run dev</code></pre>
 
     <section class="section">
       <h2>Releases &amp; Docker images</h2>
-      <p>Pushing a version tag builds and publishes images to Docker Hub:</p>
+      <p>Pushing a version tag builds and publishes images to Docker Hub (tagged with the version and <code>latest</code>):</p>
       <pre><code>git tag v1.0.0
 git push origin v1.0.0</code></pre>
-      <p>Images: <code>darioguarascio/tk103b-tracker</code> and <code>darioguarascio/tk103b-tracker-ingest</code>. Pin <code>IMAGE_TAG=v1.0.0</code> in your <code>.env</code> for a specific release.</p>
+      <p>Images: <code>darioguarascio/tk103b-tracker</code> and <code>darioguarascio/tk103b-tracker-ingest</code>. Use <code>IMAGE_TAG=latest</code> (default) and run <code>docker compose pull &amp;&amp; docker compose up -d</code> to update. Pin <code>IMAGE_TAG=v1.0.0</code> for a fixed release.</p>
     </section>
 
     <section class="section">
