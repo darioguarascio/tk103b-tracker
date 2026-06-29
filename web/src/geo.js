@@ -72,11 +72,11 @@ export function segmentTrack(points) {
 }
 
 export const DATE_WINDOWS = [
-  { id: '1d', label: '1d', days: 1 },
-  { id: '3d', label: '3d', days: 3 },
-  { id: '1w', label: '1w', days: 7 },
-  { id: '2w', label: '2w', days: 14 },
-  { id: '1m', label: '1m', days: 30 },
+  { id: '1d', label: 'Last day', days: 1 },
+  { id: '3d', label: 'Last 3 days', days: 3 },
+  { id: '1w', label: 'Last week', days: 7 },
+  { id: '2w', label: 'Last 2 weeks', days: 14 },
+  { id: '1m', label: 'Last month', days: 30 },
 ];
 
 export function windowRange(days, rangeEnd, rangeMin) {

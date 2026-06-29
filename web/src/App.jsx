@@ -38,6 +38,32 @@ function ToolbarControls({
       </label>
 
       <label>
+        Mode
+        <select value={mode} onChange={(e) => setMode(e.target.value)}>
+          <option value="replay">Replay</option>
+          <option value="live">Live</option>
+        </select>
+      </label>
+
+      <label>
+        Range
+        <select
+          value={dateWindow}
+          onChange={(e) => {
+            const w = DATE_WINDOWS.find((x) => x.id === e.target.value);
+            if (w) applyDateWindow(w.days, w.id);
+            else setDateWindow('');
+          }}
+          disabled={mode === 'live'}
+        >
+          <option value="">Custom</option>
+          {DATE_WINDOWS.map((w) => (
+            <option key={w.id} value={w.id}>{w.label}</option>
+          ))}
+        </select>
+      </label>
+
+      <label>
         From
         <input type="datetime-local" value={from} onChange={(e) => { setFrom(e.target.value); setDateWindow(''); }} disabled={mode === 'live'} />
       </label>
@@ -45,20 +71,6 @@ function ToolbarControls({
         To
         <input type="datetime-local" value={to} onChange={(e) => { setTo(e.target.value); setDateWindow(''); }} disabled={mode === 'live'} />
       </label>
-
-      <div className="date-windows">
-        {DATE_WINDOWS.map((w) => (
-          <button
-            key={w.id}
-            type="button"
-            className={`window-chip ${dateWindow === w.id ? 'on' : ''}`}
-            onClick={() => applyDateWindow(w.days, w.id)}
-            disabled={mode === 'live'}
-          >
-            {w.label}
-          </button>
-        ))}
-      </div>
 
       <div className="type-filters">
         {ALL_TYPES.map((type) => (
@@ -76,12 +88,6 @@ function ToolbarControls({
 
       <button type="button" className="secondary" onClick={loadData} disabled={loading || mode === 'live'}>
         {loading ? 'Loading…' : 'Reload'}
-      </button>
-      <button type="button" className={mode === 'replay' ? 'active' : 'secondary'} onClick={() => setMode('replay')}>
-        Replay
-      </button>
-      <button type="button" className={mode === 'live' ? 'active' : 'secondary'} onClick={() => setMode('live')}>
-        Live ●
       </button>
 
       {mode === 'replay' && (
@@ -369,7 +375,7 @@ export default function App() {
         <button type="button" className="icon-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu">
           <span className="hamburger" />
         </button>
-        <span className="mobile-title">TK103B Tracker</span>
+        <span className="mobile-title">TK103B · {mode === 'live' ? 'Live' : 'Replay'}</span>
         <button
           type="button"
           className={`icon-btn events-toggle ${eventsOpen ? 'on' : ''}`}
