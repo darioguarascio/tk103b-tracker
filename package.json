@@ -1,0 +1,17 @@
+{
+  "name": "tk103b-tracker",
+  "version": "1.0.0",
+  "description": "Lightweight web UI and GPS ingest server for TK103B trackers",
+  "license": "MIT",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server",
+    "init-db": "node scripts/init-db.js",
+    "migrate-legacy": "node scripts/migrate-legacy.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Features — TK103B Tracker</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="logo" href="index.html">TK103B <span>Tracker</span></a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="features.html" class="active">Features</a>
+        <a href="interface.html">Interface</a>
+        <a href="setup.html">Setup</a>
+        <a href="https://github.com/darioguarascio/tk103b-tracker">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="padding-top: 24px">
+      <h1>Features</h1>
+      <p>Everything you need to track one or more TK103B devices without vendor lock-in.</p>
+    </section>
+
+    <section class="section">
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="feature-icon">●</div>
+          <div>
+            <h3>Live tracking</h3>
+            <p>Server-Sent Events stream new positions as they arrive. The map follows the vehicle and appends to the track in real time.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">▶</div>
+          <div>
+            <h3>Trip replay</h3>
+            <p>Scrub through historical <code>move</code> points with play/pause and speed control (1×–16×). Timeline slider jumps to any moment.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">⚡</div>
+          <div>
+            <h3>Event types</h3>
+            <p>Filter and display alarms and state changes: acc on/off, sensor alarm, acc alarm, tracker heartbeat, AC alarm.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🛰</div>
+          <div>
+            <h3>Multi-tracker</h3>
+            <p>Devices auto-register by IMEI on first packet. Switch between trackers from a dropdown; each has independent history.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🔒</div>
+          <div>
+            <h3>Optional password auth</h3>
+            <p>Set <code>AUTH_PASSWORD</code> to protect the UI. Signed HTTP-only cookies; leave empty for open access on trusted networks.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🐳</div>
+          <div>
+            <h3>Docker-ready</h3>
+            <p>Two images on Docker Hub — app and ingest. Sample compose file in the repo; bring your own PostGIS instance.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Supported event types</h2>
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>move</code></td><td>GPS position update while moving — drawn as the track polyline</td></tr>
+          <tr><td><code>acc on</code> / <code>acc off</code></td><td>Ignition on/off</td></tr>
+          <tr><td><code>acc alarm</code></td><td>Ignition-related alarm</td></tr>
+          <tr><td><code>sensor alarm</code></td><td>External sensor trigger</td></tr>
+          <tr><td><code>tracker</code></td><td>Heartbeat / status packet</td></tr>
+          <tr><td><code>ac alarm</code></td><td>AC power alarm</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>API endpoints</h2>
+      <p>The Express API serves the React UI and exposes JSON endpoints:</p>
+      <table>
+        <thead>
+          <tr><th>Endpoint</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>GET /api/trackers</code></td><td>List devices with last known position</td></tr>
+          <tr><td><code>GET /api/track</code></td><td>Position history for replay</td></tr>
+          <tr><td><code>GET /api/events</code></td><td>Non-move events in a time range</td></tr>
+          <tr><td><code>GET /api/live</code></td><td>SSE stream of new positions</td></tr>
+          <tr><td><code>GET /api/range</code></td><td>Earliest/latest timestamps in DB</td></tr>
+          <tr><td><code>GET /api/health</code></td><td>Health check (DB connectivity)</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    MIT License · <a href="https://github.com/darioguarascio/tk103b-tracker">darioguarascio/tk103b-tracker</a>
+  </footer>
+</body>
+</html>

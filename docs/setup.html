@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup — TK103B Tracker</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="logo" href="index.html">TK103B <span>Tracker</span></a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="features.html">Features</a>
+        <a href="interface.html">Interface</a>
+        <a href="setup.html" class="active">Setup</a>
+        <a href="https://github.com/darioguarascio/tk103b-tracker">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="padding-top: 24px">
+      <h1>Setup guide</h1>
+      <p>Run TK103B Tracker with Docker or from source. You need a PostGIS database — the compose file does not include one.</p>
+    </section>
+
+    <section class="section">
+      <h2>Prerequisites</h2>
+      <ul>
+        <li>PostGIS 13+ (any hosted or self-managed PostgreSQL with PostGIS extension)</li>
+        <li>Docker &amp; Docker Compose (recommended), or Node.js 20+</li>
+        <li>TK103B tracker configured to report to your server IP on port <strong>9000</strong></li>
+        <li>Firewall: expose <strong>9000/tcp</strong> (ingest) and <strong>9060/tcp</strong> (web UI) as needed</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Docker (recommended)</h2>
+      <p>Copy the sample files from <code>examples/</code> in the repository:</p>
+      <pre><code>mkdir tk103b-tracker &amp;&amp; cd tk103b-tracker
+curl -O https://raw.githubusercontent.com/darioguarascio/tk103b-tracker/main/examples/docker-compose.yml
+curl -O https://raw.githubusercontent.com/darioguarascio/tk103b-tracker/main/examples/.env.example
+cp .env.example .env</code></pre>
+
+      <h3>Configure <code>.env</code></h3>
+      <table>
+        <thead><tr><th>Variable</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>DATABASE_URL</code></td><td>PostGIS connection string, e.g. <code>postgres://user:pass@dbhost:5432/tk103b</code></td></tr>
+          <tr><td><code>AUTH_PASSWORD</code></td><td>UI password; leave empty to disable login</td></tr>
+          <tr><td><code>AUTH_SECRET</code></td><td>Session signing secret — generate with <code>openssl rand -hex 32</code></td></tr>
+          <tr><td><code>IMAGE_TAG</code></td><td>Docker image tag (default <code>latest</code>)</td></tr>
+          <tr><td><code>APP_PORT</code></td><td>Host port for web UI (default 9060)</td></tr>
+          <tr><td><code>INGEST_PORT</code></td><td>Host port for GPS TCP (default 9000)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Initialize database schema (once)</h3>
+      <pre><code>docker compose --profile init run --rm db-init</code></pre>
+
+      <h3>Start services</h3>
+      <pre><code>docker compose up -d</code></pre>
+
+      <p>Open <code>http://&lt;your-host&gt;:9060</code>. Point the tracker at <code>&lt;your-host&gt;:9000</code>.</p>
+    </section>
+
+    <section class="section">
+      <h2>Development</h2>
+      <pre><code>git clone https://github.com/darioguarascio/tk103b-tracker.git
+cd tk103b-tracker
+cp .env.example .env
+# edit DATABASE_URL
+
+npm install
+npm run init-db
+npm run dev</code></pre>
+      <ul>
+        <li>API: <a href="http://localhost:3001">localhost:3001</a></li>
+        <li>Vite dev UI: <a href="http://localhost:5173">localhost:5173</a> (proxies <code>/api</code>)</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Tracker configuration</h2>
+      <p>TK103B devices are typically configured via SMS. Common settings (exact commands vary by firmware):</p>
+      <ol>
+        <li>Set the server IP and port to your ingest host: <code>9000</code></li>
+        <li>Enable GPRS upload interval (e.g. every 30s while moving)</li>
+        <li>Verify the device sends <code>imei:…</code> prefixed packets — this is what the ingest server parses</li>
+      </ol>
+      <p>On connect the server responds with <code>LOAD</code> or <code>ON</code> handshakes as required by the protocol.</p>
+    </section>
+
+    <section class="section">
+      <h2>Database schema</h2>
+      <p>Two tables: <code>tracker</code> (one row per IMEI) and <code>car</code> (position/event log with PostGIS <code>geometry(Point, 4326)</code>). Schema is in <code>migrations/001_schema.sql</code> and applied by <code>npm run init-db</code>.</p>
+    </section>
+
+    <section class="section">
+      <h2>Releases &amp; Docker images</h2>
+      <p>Pushing a version tag builds and publishes images to Docker Hub:</p>
+      <pre><code>git tag v1.0.0
+git push origin v1.0.0</code></pre>
+      <p>Images: <code>darioguarascio/tk103b-tracker</code> and <code>darioguarascio/tk103b-tracker-ingest</code>. Pin <code>IMAGE_TAG=v1.0.0</code> in your <code>.env</code> for a specific release.</p>
+    </section>
+
+    <section class="section">
+      <h2>Legacy data migration</h2>
+      <p>If you have data in an old single-table <code>car</code> schema without <code>tracker_id</code>:</p>
+      <pre><code>SOURCE=postgres://old-host/db TARGET=postgres://new-host/tk103b npm run migrate-legacy</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Troubleshooting</h2>
+      <ul>
+        <li><strong>No positions appearing</strong> — check ingest logs (<code>docker compose logs ingest</code>), firewall on port 9000, and that <code>DATABASE_URL</code> is reachable from containers</li>
+        <li><strong>UI shows login loop</strong> — set a stable <code>AUTH_SECRET</code>; without it, sessions invalidate on every app restart</li>
+        <li><strong>Empty map</strong> — run db-init, confirm tracker IMEI appears in <code>GET /api/trackers</code></li>
+        <li><strong>Health check</strong> — <code>curl http://localhost:9060/api/health</code> should return <code>{"ok":true}</code></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    MIT License · <a href="https://github.com/darioguarascio/tk103b-tracker">darioguarascio/tk103b-tracker</a>
+  </footer>
+</body>
+</html>

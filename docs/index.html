@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TK103B Tracker</title>
+  <meta name="description" content="Open-source GPS tracker dashboard for TK103B devices" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="logo" href="index.html">TK103B <span>Tracker</span></a>
+      <nav>
+        <a href="index.html" class="active">Home</a>
+        <a href="features.html">Features</a>
+        <a href="interface.html">Interface</a>
+        <a href="setup.html">Setup</a>
+        <a href="https://github.com/darioguarascio/tk103b-tracker">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Lightweight GPS tracking for TK103B devices</h1>
+      <p>
+        Self-hosted dashboard with live map, trip replay, event filtering, and a TCP ingest server
+        that speaks the TK103B protocol. Store positions in PostGIS, view them in a modern web UI.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="setup.html">Get started</a>
+        <a class="btn btn-secondary" href="https://github.com/darioguarascio/tk103b-tracker">View source</a>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What is it?</h2>
+      <p>
+        TK103B Tracker is an open-source stack for cheap Chinese GPS trackers using the TK103B text protocol.
+        It replaces heavy CMS setups with a focused map interface: see where your vehicle is now, replay where it was,
+        and inspect alarms and ignition events on a timeline.
+      </p>
+      <div class="cards" style="margin-top: 24px">
+        <div class="card">
+          <h3>📡 Ingest</h3>
+          <p>TCP server on port 9000 receives tracker packets, parses coordinates and events, writes to PostGIS.</p>
+        </div>
+        <div class="card">
+          <h3>🗺️ Web UI</h3>
+          <p>React + Leaflet map with live SSE updates, replay mode, and per-event-type filtering.</p>
+        </div>
+        <div class="card">
+          <h3>🗄️ PostGIS</h3>
+          <p>Spatial queries for tracks, latest positions, and event history. Bring your own database.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Architecture</h2>
+      <div class="arch">
+        <span class="hl">TK103B device</span> ──TCP:9000──▶ <span class="ok">ingest</span> ──▶ PostGIS<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▲<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+        <span class="hl">Browser</span> ──HTTP:9060──▶ <span class="ok">app</span> (API + static UI) ──┘
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Quick links</h2>
+      <ul>
+        <li><a href="features.html">Features</a> — live tracking, replay, events, auth</li>
+        <li><a href="interface.html">Interface tour</a> — walkthrough of the dashboard</li>
+        <li><a href="setup.html">Setup guide</a> — Docker, development, tracker configuration</li>
+        <li><a href="https://hub.docker.com/r/darioguarascio/tk103b-tracker">Docker Hub</a> — pre-built images</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    MIT License · <a href="https://github.com/darioguarascio/tk103b-tracker">darioguarascio/tk103b-tracker</a>
+  </footer>
+</body>
+</html>

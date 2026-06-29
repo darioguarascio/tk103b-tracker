@@ -1,0 +1,9 @@
+{
+  "name": "ingest",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "pg": "^8.13.3",
+    "winston": "^3.17.0"
+  }
+}

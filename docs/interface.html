@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interface — TK103B Tracker</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="logo" href="index.html">TK103B <span>Tracker</span></a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="features.html">Features</a>
+        <a href="interface.html" class="active">Interface</a>
+        <a href="setup.html">Setup</a>
+        <a href="https://github.com/darioguarascio/tk103b-tracker">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="padding-top: 24px">
+      <h1>Interface</h1>
+      <p>A dark, map-first dashboard designed for quick situational awareness — on desktop or mobile.</p>
+    </section>
+
+    <section class="section">
+      <h2>Dashboard overview</h2>
+      <p>Mockup of the main screen (OpenStreetMap tiles in the real app):</p>
+      <div class="ui-mock" style="margin: 24px 0">
+        <div class="ui-toolbar">
+          <div class="ui-field">
+            <label>Tracker</label>
+            <select><option>Tracker 868683023262094</option></select>
+          </div>
+          <div class="ui-field">
+            <label>From</label>
+            <input type="text" value="2026-06-01 08:00" readonly />
+          </div>
+          <div class="ui-field">
+            <label>To</label>
+            <input type="text" value="2026-06-29 18:00" readonly />
+          </div>
+          <span class="ui-chip on">move</span>
+          <span class="ui-chip">acc alarm</span>
+          <span class="ui-chip on">acc on</span>
+          <span class="ui-chip">sensor alarm</span>
+          <button class="ui-btn ui-btn-muted">Reload</button>
+          <button class="ui-btn ui-btn-muted">Replay</button>
+          <button class="ui-btn ui-btn-success">Live ●</button>
+          <button class="ui-btn ui-btn-primary">Play</button>
+        </div>
+        <div class="ui-body">
+          <div class="ui-map">
+            <div class="ui-track">
+              <svg viewBox="0 0 200 80" preserveAspectRatio="none">
+                <path d="M10,60 Q60,20 120,35 T190,15" fill="none" stroke="#3b82f6" stroke-width="3" opacity="0.8"/>
+                <path d="M10,60 Q60,20 120,35 T190,15" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.5"/>
+              </svg>
+            </div>
+            <div class="ui-marker"></div>
+          </div>
+          <div class="ui-sidebar">
+            <h4>Events (3)</h4>
+            <div class="ui-event">
+              <div class="type" style="color:#22c55e">acc on</div>
+              <div class="time">Jun 29 · 07:42 · 0 km/h</div>
+            </div>
+            <div class="ui-event">
+              <div class="type" style="color:#ef4444">acc alarm</div>
+              <div class="time">Jun 29 · 06:15 · 0 km/h</div>
+            </div>
+            <div class="ui-event">
+              <div class="type" style="color:#3b82f6">move</div>
+              <div class="time">Jun 28 · 22:01 · 62 km/h</div>
+            </div>
+          </div>
+        </div>
+        <div class="ui-status">
+          <span>Time: <strong>29/06/2026, 09:14:32</strong></span>
+          <span>Speed: <strong>48 km/h</strong></span>
+          <span>Heading: <strong>127°</strong></span>
+          <span>Type: <strong>move</strong></span>
+          <div class="ui-timeline"><div class="ui-timeline-fill"></div></div>
+          <span>412 / 1840</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Toolbar</h2>
+      <ul>
+        <li><strong>Tracker</strong> — select which IMEI to view</li>
+        <li><strong>From / To</strong> — datetime range for replay (disabled in Live mode)</li>
+        <li><strong>Event chips</strong> — toggle which event types to load and show on the map</li>
+        <li><strong>Reload</strong> — fetch track + events for the selected range</li>
+        <li><strong>Replay / Live</strong> — switch between historical playback and real-time SSE stream</li>
+        <li><strong>Play / Speed</strong> — animate replay at 1×–16× (replay mode only)</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Map</h2>
+      <ul>
+        <li>Blue polyline — <code>move</code> track; dashed overlay for depth</li>
+        <li>Blue dot — current position (replay frame or live update)</li>
+        <li>Coloured dots — events (alarms, acc on/off, etc.); click for popup with time and speed</li>
+        <li>Auto fit-bounds when loading a track; live mode pans to follow the vehicle</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Sidebar &amp; status bar</h2>
+      <ul>
+        <li><strong>Event list</strong> — click an event in replay mode to jump the timeline to that moment</li>
+        <li><strong>Status bar</strong> — current time, speed, heading, event type, point count, last seen</li>
+        <li><strong>Timeline slider</strong> — scrub through replay frames manually</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Login screen</h2>
+      <p>When <code>AUTH_PASSWORD</code> is set, a simple password gate appears before the dashboard. Sessions last 7 days via signed cookie.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    MIT License · <a href="https://github.com/darioguarascio/tk103b-tracker">darioguarascio/tk103b-tracker</a>
+  </footer>
+</body>
+</html>
