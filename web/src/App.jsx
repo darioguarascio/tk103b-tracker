@@ -19,6 +19,8 @@ function pointPopup(p) {
   return `<strong>${p.type}</strong><br>${new Date(p.gps_time).toLocaleString()}<br>${p.speed ?? 0} km/h · ${Math.round(p.angle ?? 0)}°`;
 }
 
+const MAX_SIDEBAR_ITEMS = 500;
+
 export default function App() {
   const [trackers, setTrackers] = useState([]);
   const [trackerId, setTrackerId] = useState('');
@@ -56,19 +58,6 @@ export default function App() {
     }).catch(console.error);
   }, [trackerId]);
 
-  const fetchWindowStats = useCallback(async () => {
-    if (!trackerId) return;
-    const qs = new URLSearchParams({ tracker_id: trackerId });
-    if (from) qs.set('from', fromInputValue(from));
-    if (to) qs.set('to', fromInputValue(to));
-    try {
-      const stats = await fetchJson(`/api/range?${qs}`);
-      setWindowStats(stats);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [trackerId, from, to]);
-
   const loadData = useCallback(async () => {
     if (!trackerId) return;
     setLoading(true);
@@ -77,12 +66,13 @@ export default function App() {
       if (from) qs.set('from', fromInputValue(from));
       if (to) qs.set('to', fromInputValue(to));
 
-      const fetches = [fetchWindowStats()];
+      const statsQs = new URLSearchParams(qs);
+      const fetches = [fetchJson(`/api/range?${statsQs}`).then(setWindowStats)];
 
       if (types.has('move')) {
         const moveQs = new URLSearchParams(qs);
         moveQs.set('types', 'move');
-        fetches.push(fetchJson(`/api/track?${moveQs}`).then((data) => setTrack(data)));
+        fetches.push(fetchJson(`/api/track?${moveQs}`).then(setTrack));
       } else {
         setTrack([]);
       }
@@ -91,7 +81,7 @@ export default function App() {
       if (eventTypes.length) {
         const evQs = new URLSearchParams(qs);
         evQs.set('types', eventTypes.join(','));
-        fetches.push(fetchJson(`/api/events?${evQs}`).then((data) => setEvents(data)));
+        fetches.push(fetchJson(`/api/events?${evQs}`).then(setEvents));
       } else {
         setEvents([]);
       }
@@ -105,7 +95,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [trackerId, from, to, types, fetchWindowStats]);
+  }, [trackerId, from, to, types]);
 
   useEffect(() => {
     if (mode === 'replay') loadData();
@@ -168,23 +158,49 @@ export default function App() {
   }, [mode, livePos, track, frame]);
 
   const sidebarItems = useMemo(() => {
-    const items = [];
-    if (types.has('move')) {
-      for (const p of track) items.push({ ...p, kind: 'track' });
-    }
-    for (const e of events) {
-      if (types.has(e.type)) items.push({ ...e, kind: 'event' });
-    }
+    const items = events.filter((e) => types.has(e.type));
     items.sort((a, b) => new Date(b.gps_time) - new Date(a.gps_time));
     return items;
-  }, [track, events, types]);
+  }, [events, types]);
+
+  const sidebarVisible = useMemo(
+    () => sidebarItems.slice(0, MAX_SIDEBAR_ITEMS),
+    [sidebarItems]
+  );
 
   const mapMarkers = useMemo(() => {
-    if (mode === 'live') return sidebarItems;
-    if (!current) return sidebarItems;
-    const t = new Date(current.gps_time).getTime();
-    return sidebarItems.filter((p) => new Date(p.gps_time).getTime() <= t);
-  }, [sidebarItems, mode, current]);
+    const items = [];
+    if (mode !== 'live' && current) {
+      const t = new Date(current.gps_time).getTime();
+      if (types.has('move')) {
+        const start = Math.max(0, frame - 200);
+        for (let i = start; i <= frame && i < track.length; i++) items.push(track[i]);
+      }
+      for (const e of events) {
+        if (types.has(e.type) && new Date(e.gps_time).getTime() <= t) items.push(e);
+      }
+    } else {
+      if (types.has('move')) {
+        const tail = track.length > 300 ? track.slice(-300) : track;
+        items.push(...tail);
+      }
+      for (const e of events) {
+        if (types.has(e.type)) items.push(e);
+      }
+    }
+    return items;
+  }, [track, events, types, mode, current, frame]);
+
+  const selectPoint = useCallback((point) => {
+    setSelectedId(point.id);
+    if (mode === 'replay' && point.type === 'move') {
+      const idx = track.findIndex((p) => p.id === point.id);
+      if (idx >= 0) setFrame(idx);
+    } else if (mode === 'replay') {
+      const idx = track.findIndex((p) => p.gps_time >= point.gps_time);
+      if (idx >= 0) setFrame(idx);
+    }
+  }, [mode, track]);
 
   const toggleType = (type) => {
     setTypes((prev) => {
@@ -200,17 +216,6 @@ export default function App() {
     setFrom(toInputValue(start.toISOString()));
     setTo(toInputValue(end.toISOString()));
     setDateWindow(id);
-  };
-
-  const selectPoint = (point) => {
-    setSelectedId(point.id);
-    if (mode === 'replay' && point.type === 'move') {
-      const idx = track.findIndex((p) => p.id === point.id);
-      if (idx >= 0) setFrame(idx);
-    } else if (mode === 'replay') {
-      const idx = track.findIndex((p) => p.gps_time >= point.gps_time);
-      if (idx >= 0) setFrame(idx);
-    }
   };
 
   const tracker = trackers.find((t) => String(t.id) === String(trackerId));
@@ -309,6 +314,7 @@ export default function App() {
         <div className="map-wrap">
           <MapView
             track={replayTrack}
+            boundsTrack={track}
             markers={mapMarkers}
             current={current}
             followLive={mode === 'live'}
@@ -319,9 +325,12 @@ export default function App() {
         </div>
 
         <aside className="sidebar">
-          <h3>Points ({sidebarItems.length})</h3>
+          <h3>Events ({sidebarItems.length})</h3>
+          {types.has('move') && track.length > 0 && (
+            <div className="sidebar-summary">{track.length.toLocaleString()} move points on map</div>
+          )}
           <div className="event-list">
-            {sidebarItems.map((ev) => (
+            {sidebarVisible.map((ev) => (
               <div
                 key={ev.id}
                 className={`event-item ${selectedId === ev.id ? 'selected' : ''}`}
@@ -331,8 +340,16 @@ export default function App() {
                 <div className="time">{fmtShort(ev.gps_time)} · {ev.speed ?? 0} km/h</div>
               </div>
             ))}
-            {sidebarItems.length === 0 && (
-              <div className="event-item" style={{ color: 'var(--muted)' }}>No points in range</div>
+            {sidebarItems.length === 0 && !types.has('move') && (
+              <div className="event-item" style={{ color: 'var(--muted)' }}>No events in range</div>
+            )}
+            {sidebarItems.length === 0 && types.has('move') && (
+              <div className="event-item" style={{ color: 'var(--muted)' }}>No events — track on map</div>
+            )}
+            {sidebarItems.length > MAX_SIDEBAR_ITEMS && (
+              <div className="event-item" style={{ color: 'var(--muted)' }}>
+                + {(sidebarItems.length - MAX_SIDEBAR_ITEMS).toLocaleString()} more
+              </div>
             )}
           </div>
         </aside>

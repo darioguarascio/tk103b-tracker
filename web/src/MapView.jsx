@@ -5,7 +5,7 @@ import { eventColor } from './api';
 import { segmentTrack } from './geo';
 
 const MIN_POINT_ZOOM = 14;
-const MAX_POINT_MARKERS = 800;
+const MAX_POINT_MARKERS = 400;
 
 const carIcon = L.divIcon({
   className: 'car-marker',
@@ -17,10 +17,9 @@ const carIcon = L.divIcon({
 function eventIcon(type, selected) {
   const color = eventColor(type);
   const size = selected ? 12 : 10;
-  const border = selected ? '2px solid #fff' : '2px solid #fff';
   return L.divIcon({
     className: 'event-marker',
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:${border};box-shadow:${selected ? '0 0 8px rgba(255,255,255,.8)' : 'none'}"></div>`,
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:${selected ? '0 0 8px rgba(255,255,255,.8)' : 'none'}"></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -35,6 +34,7 @@ function pointsInBounds(points, bounds, max) {
 
 export default function MapView({
   track,
+  boundsTrack,
   markers,
   current,
   followLive,
@@ -47,6 +47,7 @@ export default function MapView({
   const trackLayerRef = useRef(null);
   const pointsLayerRef = useRef(null);
   const markerRef = useRef(null);
+  const fittedKeyRef = useRef('');
   const markersRef = useRef(markers);
   const onSelectRef = useRef(onSelectPoint);
   const popupRef = useRef(pointPopup);
@@ -69,7 +70,6 @@ export default function MapView({
     trackLayerRef.current = L.layerGroup().addTo(map);
     pointsLayerRef.current = L.layerGroup().addTo(map);
     markerRef.current = L.marker([45.46, 9.19], { icon: carIcon }).addTo(map);
-
     mapRef.current = map;
 
     const resize = () => map.invalidateSize();
@@ -81,19 +81,20 @@ export default function MapView({
     const refreshPoints = () => {
       const layer = pointsLayerRef.current;
       const pts = markersRef.current;
-      if (!layer || !map) return;
+      if (!layer || !map || !pts.length) {
+        layer?.clearLayers();
+        return;
+      }
 
       layer.clearLayers();
-      if (!pts.length) return;
-
-      const zoom = map.getZoom();
       const bounds = map.getBounds();
-      const events = pts.filter((p) => p.type !== 'move');
-      const moves = zoom >= MIN_POINT_ZOOM
-        ? pointsInBounds(pts.filter((p) => p.type === 'move'), bounds, MAX_POINT_MARKERS)
-        : [];
+      const zoom = map.getZoom();
+      const visible = pointsInBounds(pts, bounds, MAX_POINT_MARKERS);
+      const toShow = zoom >= MIN_POINT_ZOOM
+        ? visible
+        : visible.filter((p) => p.type !== 'move');
 
-      for (const p of [...events, ...moves]) {
+      for (const p of toShow) {
         const isMove = p.type === 'move';
         const selected = p.id === selectedRef.current;
         const m = isMove
@@ -138,8 +139,6 @@ export default function MapView({
       L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(trackLayer);
       L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(trackLayer);
     }
-
-    map._refreshPoints?.();
   }, [track]);
 
   useEffect(() => {
@@ -159,13 +158,22 @@ export default function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || track.length === 0) return;
-    const bounds = L.latLngBounds(track.map((p) => [p.lat, p.lng]));
-    if (bounds.isValid() && !followLive) {
+    const fit = boundsTrack ?? track;
+    if (!map || fit.length === 0 || followLive) return;
+
+    const key = `${fit.length}:${fit[0]?.id}:${fit[fit.length - 1]?.id}`;
+    if (fittedKeyRef.current === key) return;
+    fittedKeyRef.current = key;
+
+    const bounds = L.latLngBounds(fit.map((p) => [p.lat, p.lng]));
+    if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-      setTimeout(() => map.invalidateSize(), 50);
+      setTimeout(() => {
+        map.invalidateSize();
+        map._refreshPoints?.();
+      }, 50);
     }
-  }, [track, followLive]);
+  }, [boundsTrack, track, followLive]);
 
   return <div ref={containerRef} className="map" />;
 }
