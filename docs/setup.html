@@ -107,12 +107,6 @@ git push origin v1.0.0</code></pre>
     </section>
 
     <section class="section">
-      <h2>Legacy data migration</h2>
-      <p>If you have data in an old single-table <code>car</code> schema without <code>tracker_id</code>:</p>
-      <pre><code>SOURCE=postgres://old-host/db TARGET=postgres://new-host/tk103b npm run migrate-legacy</code></pre>
-    </section>
-
-    <section class="section">
       <h2>Troubleshooting</h2>
       <ul>
         <li><strong>No positions appearing</strong> — check ingest logs (<code>docker compose logs ingest</code>), firewall on port 9000, and that <code>DATABASE_URL</code> is reachable from containers</li>
