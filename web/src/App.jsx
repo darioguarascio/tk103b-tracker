@@ -149,8 +149,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
-  const liveRef = useRef(null);
   const liveLastRef = useRef(null);
+  const liveSinceIdRef = useRef(0);
 
   useEffect(() => {
     fetchJson('/api/trackers').then((rows) => {
@@ -211,42 +211,70 @@ export default function App() {
     if (mode === 'replay') loadData();
   }, [loadData, mode]);
 
+  const applyLiveRow = useCallback((row) => {
+    liveSinceIdRef.current = Math.max(liveSinceIdRef.current, row.id);
+    if (row.type === 'move') {
+      if (isStationaryMove(row)) return;
+      const last = liveLastRef.current;
+      if (last && !isPlausibleStep(last, row)) return;
+      liveLastRef.current = row;
+      setLivePos(row);
+      setTrack((prev) => {
+        const next = [...prev, row];
+        return next.length > 500 ? next.slice(-500) : next;
+      });
+    } else {
+      setEvents((prev) => [row, ...prev].slice(0, 200));
+    }
+  }, []);
+
   useEffect(() => {
     if (mode !== 'live' || !trackerId) return;
 
-    const es = new EventSource(`/api/live?tracker_id=${trackerId}`);
-    liveRef.current = es;
+    let cancelled = false;
+    liveLastRef.current = null;
+    liveSinceIdRef.current = 0;
+    setTrack([]);
+    setEvents([]);
+    setLivePos(null);
 
-    es.onmessage = (e) => {
-      const row = JSON.parse(e.data);
-      if (row.type === 'move') {
-        if (isStationaryMove(row)) return;
-        const last = liveLastRef.current;
-        if (last && !isPlausibleStep(last, row)) return;
-        liveLastRef.current = row;
-        setLivePos(row);
-        setTrack((prev) => {
-          const next = [...prev, row];
-          return next.length > 500 ? next.slice(-500) : next;
-        });
-      } else {
-        setEvents((prev) => [row, ...prev].slice(0, 200));
+    const poll = async () => {
+      try {
+        const rows = await fetchJson(
+          `/api/live/poll?tracker_id=${trackerId}&since_id=${liveSinceIdRef.current}`
+        );
+        if (cancelled) return;
+        for (const row of rows) applyLiveRow(row);
+      } catch (err) {
+        if (!cancelled) console.error(err);
       }
     };
 
-    liveLastRef.current = null;
-    setTrack([]);
-    setEvents([]);
-
-    fetchJson(`/api/positions/latest?tracker_id=${trackerId}`).then((rows) => {
-      if (rows[0]) {
-        liveLastRef.current = rows[0];
-        setLivePos(rows[0]);
+    (async () => {
+      try {
+        const rows = await fetchJson(`/api/positions/latest?tracker_id=${trackerId}`);
+        if (cancelled) return;
+        if (rows[0]) {
+          const pt = rows[0];
+          liveSinceIdRef.current = pt.id;
+          liveLastRef.current = pt;
+          setLivePos(pt);
+          if (pt.type === 'move' && !isStationaryMove(pt) && pt.lat != null && pt.lng != null) {
+            setTrack([pt]);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) console.error(err);
       }
-    });
+      if (!cancelled) poll();
+    })();
 
-    return () => es.close();
-  }, [mode, trackerId]);
+    const interval = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [mode, trackerId, applyLiveRow]);
 
   useEffect(() => {
     if (!playing || track.length === 0) return;
@@ -361,7 +389,11 @@ export default function App() {
         <button type="button" className="icon-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu">
           <span className="hamburger" />
         </button>
-        <span className="mobile-title">TK103B · {mode === 'live' ? 'Live' : 'Replay'}</span>
+        <span className="mobile-title">
+          TK103B · {mode === 'live' ? (
+            <span className="live-label">Live <span className="live-dot" aria-hidden="true" /></span>
+          ) : 'Replay'}
+        </span>
         <button
           type="button"
           className={`icon-btn events-toggle ${eventsOpen ? 'on' : ''}`}

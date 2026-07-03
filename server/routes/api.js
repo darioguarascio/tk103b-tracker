@@ -165,6 +165,46 @@ router.get('/range', async (req, res) => {
   res.json(rows[0]);
 });
 
+async function fetchLiveRows(trackerId, sinceId) {
+  const params = [sinceId];
+  let filter = 'c.id > $1';
+  if (trackerId) {
+    params.push(trackerId);
+    filter += ` AND c.tracker_id = $${params.length}`;
+  }
+
+  const { rows } = await query(`
+    SELECT c.id, c.tracker_id, c.gps_time, c.type, c.speed, c.angle,
+           ST_X(c.coords) AS lng, ST_Y(c.coords) AS lat
+    FROM car c
+    WHERE ${filter}
+    ORDER BY c.id ASC
+    LIMIT 100
+  `, params);
+
+  const out = [];
+  let lastSent = null;
+  for (const row of rows) {
+    if (row.type === 'move' && isStationaryMove(row)) continue;
+    if (row.type === 'move' && lastSent && !isPlausibleStep(lastSent, row)) continue;
+    out.push(row);
+    if (row.lat != null && row.lng != null) lastSent = row;
+  }
+  return out;
+}
+
+router.get('/live/poll', async (req, res) => {
+  try {
+    const trackerId = req.query.tracker_id;
+    const sinceId = parseInt(req.query.since_id || '0', 10);
+    const rows = await fetchLiveRows(trackerId, sinceId);
+    res.json(rows);
+  } catch (err) {
+    console.error('live poll error', err);
+    res.status(500).json({ error: 'poll failed' });
+  }
+});
+
 router.get('/live', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -173,7 +213,6 @@ router.get('/live', async (req, res) => {
 
   const trackerId = req.query.tracker_id;
   let lastId = parseInt(req.query.since_id || '0', 10);
-  let lastSent = null;
 
   const send = (row) => {
     res.write(`data: ${JSON.stringify(row)}\n\n`);
@@ -181,35 +220,17 @@ router.get('/live', async (req, res) => {
 
   const poll = async () => {
     try {
-      const params = [lastId];
-      let filter = 'c.id > $1';
-      if (trackerId) {
-        params.push(trackerId);
-        filter += ` AND c.tracker_id = $${params.length}`;
-      }
-
-      const { rows } = await query(`
-        SELECT c.id, c.tracker_id, c.gps_time, c.type, c.speed, c.angle,
-               ST_X(c.coords) AS lng, ST_Y(c.coords) AS lat
-        FROM car c
-        WHERE ${filter}
-        ORDER BY c.id ASC
-        LIMIT 100
-      `, params);
-
+      const rows = await fetchLiveRows(trackerId, lastId);
       for (const row of rows) {
         lastId = row.id;
-        if (row.type === 'move' && isStationaryMove(row)) continue;
-        if (row.type === 'move' && lastSent && !isPlausibleStep(lastSent, row)) continue;
         send(row);
-        if (row.lat != null && row.lng != null) lastSent = row;
       }
     } catch (err) {
       console.error('live poll error', err);
     }
   };
 
-  const interval = setInterval(poll, 5000);
+  const interval = setInterval(poll, 2000);
   poll();
   req.on('close', () => clearInterval(interval));
 });

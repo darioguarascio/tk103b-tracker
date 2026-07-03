@@ -9,9 +9,16 @@ const MAX_POINT_MARKERS = 400;
 
 const carIcon = L.divIcon({
   className: 'car-marker',
-  html: '<div style="width:14px;height:14px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.5)"></div>',
+  html: '<div class="car-dot"></div>',
   iconSize: [14, 14],
   iconAnchor: [7, 7],
+});
+
+const carIconLive = L.divIcon({
+  className: 'car-marker car-marker-live',
+  html: '<span class="live-ping"></span><span class="live-ping live-ping-delay"></span><span class="car-dot"></span>',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
 });
 
 function eventIcon(type, selected) {
@@ -30,6 +37,23 @@ function pointsInBounds(points, bounds, max) {
   if (inside.length <= max) return inside;
   const step = Math.ceil(inside.length / max);
   return inside.filter((_, i) => i % step === 0);
+}
+
+function addSegmentLines(layer, a, b) {
+  const latlngs = [[a.lat, a.lng], [b.lat, b.lng]];
+  L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(layer);
+  L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(layer);
+}
+
+function drawFullTrack(layer, track) {
+  layer.clearLayers();
+  const segments = segmentTrack(track);
+  for (const seg of segments) {
+    if (seg.length < 2) continue;
+    const latlngs = seg.map((p) => [p.lat, p.lng]);
+    L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(layer);
+    L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(layer);
+  }
 }
 
 export default function MapView({
@@ -52,6 +76,9 @@ export default function MapView({
   const onSelectRef = useRef(onSelectPoint);
   const popupRef = useRef(pointPopup);
   const selectedRef = useRef(selectedId);
+  const liveDrawnLenRef = useRef(0);
+  const liveDrawnHeadRef = useRef(null);
+  const prevFollowLiveRef = useRef(false);
 
   markersRef.current = markers;
   onSelectRef.current = onSelectPoint;
@@ -126,24 +153,57 @@ export default function MapView({
   }, []);
 
   useEffect(() => {
-    const map = mapRef.current;
     const trackLayer = trackLayerRef.current;
-    if (!map || !trackLayer) return;
+    if (!trackLayer) return;
 
-    trackLayer.clearLayers();
-    const segments = segmentTrack(track);
+    if (followLive) {
+      if (!prevFollowLiveRef.current) {
+        trackLayer.clearLayers();
+        liveDrawnLenRef.current = track.length;
+        liveDrawnHeadRef.current = track[0]?.id ?? null;
+        prevFollowLiveRef.current = true;
+        return;
+      }
 
-    for (const seg of segments) {
-      if (seg.length < 2) continue;
-      const latlngs = seg.map((p) => [p.lat, p.lng]);
-      L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(trackLayer);
-      L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(trackLayer);
+      const headId = track[0]?.id ?? null;
+      const reset = track.length < liveDrawnLenRef.current
+        || (liveDrawnHeadRef.current != null && headId !== liveDrawnHeadRef.current);
+
+      if (reset) {
+        trackLayer.clearLayers();
+        liveDrawnLenRef.current = 0;
+        liveDrawnHeadRef.current = headId;
+        for (let i = 1; i < track.length; i++) {
+          addSegmentLines(trackLayer, track[i - 1], track[i]);
+        }
+        liveDrawnLenRef.current = track.length;
+        return;
+      }
+
+      while (liveDrawnLenRef.current < track.length) {
+        const i = liveDrawnLenRef.current;
+        if (i > 0) addSegmentLines(trackLayer, track[i - 1], track[i]);
+        liveDrawnLenRef.current += 1;
+      }
+      if (liveDrawnHeadRef.current == null) liveDrawnHeadRef.current = headId;
+      return;
     }
-  }, [track]);
+
+    prevFollowLiveRef.current = false;
+    liveDrawnLenRef.current = 0;
+    liveDrawnHeadRef.current = null;
+    drawFullTrack(trackLayer, track);
+  }, [track, followLive]);
 
   useEffect(() => {
     mapRef.current?._refreshPoints?.();
   }, [markers, selectedId]);
+
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker) return;
+    marker.setIcon(followLive ? carIconLive : carIcon);
+  }, [followLive]);
 
   useEffect(() => {
     const map = mapRef.current;
