@@ -61,7 +61,10 @@ export default function MapView({
   boundsTrack,
   markers,
   current,
-  followLive,
+  isLive,
+  followEnabled,
+  onUserMove,
+  onRecenter,
   selectedId,
   onSelectPoint,
   pointPopup,
@@ -79,6 +82,13 @@ export default function MapView({
   const liveDrawnLenRef = useRef(0);
   const liveDrawnHeadRef = useRef(null);
   const prevFollowLiveRef = useRef(false);
+  const suppressPanRef = useRef(false);
+  const isLiveRef = useRef(isLive);
+  const onUserMoveRef = useRef(onUserMove);
+
+  isLiveRef.current = isLive;
+  onUserMoveRef.current = onUserMove;
+  const followLive = isLive && followEnabled;
 
   markersRef.current = markers;
   onSelectRef.current = onSelectPoint;
@@ -143,10 +153,24 @@ export default function MapView({
     map.on('zoomend moveend', refreshPoints);
     map._refreshPoints = refreshPoints;
 
+    const onDragStart = () => {
+      if (!suppressPanRef.current && isLiveRef.current) onUserMoveRef.current?.();
+    };
+    const onZoomStart = (e) => {
+      if (!suppressPanRef.current && isLiveRef.current && e.originalEvent) {
+        onUserMoveRef.current?.();
+      }
+    };
+
+    map.on('dragstart', onDragStart);
+    map.on('zoomstart', onZoomStart);
+
     return () => {
       ro.disconnect();
       window.removeEventListener('orientationchange', resize);
       map.off('zoomend moveend', refreshPoints);
+      map.off('dragstart', onDragStart);
+      map.off('zoomstart', onZoomStart);
       map.remove();
       mapRef.current = null;
     };
@@ -202,8 +226,8 @@ export default function MapView({
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker) return;
-    marker.setIcon(followLive ? carIconLive : carIcon);
-  }, [followLive]);
+    marker.setIcon(isLive ? carIconLive : carIcon);
+  }, [isLive]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -212,9 +236,22 @@ export default function MapView({
 
     marker.setLatLng([current.lat, current.lng]);
     if (followLive) {
+      suppressPanRef.current = true;
       map.setView([current.lat, current.lng], Math.max(map.getZoom(), 14), { animate: true });
+      map.once('moveend', () => { suppressPanRef.current = false; });
     }
   }, [current, followLive]);
+
+  const handleRecenter = () => {
+    const map = mapRef.current;
+    const marker = markerRef.current;
+    onRecenter?.();
+    if (!map || !marker) return;
+    const latLng = marker.getLatLng();
+    suppressPanRef.current = true;
+    map.setView(latLng, Math.max(map.getZoom(), 14), { animate: true });
+    map.once('moveend', () => { suppressPanRef.current = false; });
+  };
 
   useEffect(() => {
     const map = mapRef.current;
@@ -235,5 +272,23 @@ export default function MapView({
     }
   }, [boundsTrack, track, followLive]);
 
-  return <div ref={containerRef} className="map" />;
+  return (
+    <div className="map-container">
+      <div ref={containerRef} className="map" />
+      {isLive && !followEnabled && (
+        <button
+          type="button"
+          className="map-recenter-btn"
+          onClick={handleRecenter}
+          aria-label="Center on tracker"
+          title="Center on tracker"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" fill="currentColor" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
 }

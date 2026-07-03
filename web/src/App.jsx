@@ -149,6 +149,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
+  const [liveFollow, setLiveFollow] = useState(true);
   const liveLastRef = useRef(null);
   const liveSinceIdRef = useRef(0);
 
@@ -286,8 +287,12 @@ export default function App() {
   }, [playing, track.length, speed]);
 
   useEffect(() => {
-    if (mode === 'live') setPlaying(false);
-  }, [mode]);
+    if (mode === 'live') {
+      setPlaying(false);
+      setEventsOpen(false);
+      setLiveFollow(true);
+    }
+  }, [mode, trackerId]);
 
   const replayTrack = useMemo(
     () => (mode === 'live' ? track : track.slice(0, frame + 1)),
@@ -398,6 +403,7 @@ export default function App() {
           type="button"
           className={`icon-btn events-toggle ${eventsOpen ? 'on' : ''}`}
           onClick={() => setEventsOpen((o) => !o)}
+          hidden={mode === 'live'}
         >
           Events {sidebarItems.length > 0 && `(${sidebarItems.length})`}
         </button>
@@ -421,7 +427,7 @@ export default function App() {
         </div>
       )}
 
-      {eventsOpen && (
+      {eventsOpen && mode !== 'live' && (
         <div className="events-overlay" onClick={() => setEventsOpen(false)}>
           <aside className="events-panel" onClick={(e) => e.stopPropagation()}>
             <div className="drawer-header">
@@ -433,23 +439,28 @@ export default function App() {
         </div>
       )}
 
-      <div className="main">
+      <div className={`main ${mode === 'live' ? 'main-live' : ''}`}>
         <div className="map-wrap">
           <MapView
             track={replayTrack}
             boundsTrack={track}
             markers={mapMarkers}
             current={current}
-            followLive={mode === 'live'}
+            isLive={mode === 'live'}
+            followEnabled={liveFollow}
+            onUserMove={() => setLiveFollow(false)}
+            onRecenter={() => setLiveFollow(true)}
             selectedId={selectedId}
             onSelectPoint={selectPoint}
             pointPopup={pointPopup}
           />
         </div>
 
-        <aside className="sidebar desktop-only">
-          <EventsList {...eventsProps} />
-        </aside>
+        {mode !== 'live' && (
+          <aside className="sidebar desktop-only">
+            <EventsList {...eventsProps} />
+          </aside>
+        )}
       </div>
 
       <footer className="status-bar">
