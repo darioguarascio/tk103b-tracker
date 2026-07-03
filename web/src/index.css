@@ -453,6 +453,28 @@ html, body, #root {
 
 .car-marker { background: transparent; border: none; }
 
+.car-marker-arrow {
+  color: var(--accent);
+}
+
+.vehicle-body {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  z-index: 2;
+  color: var(--accent);
+}
+
+.vehicle-arrow {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+}
+
 .car-dot {
   width: 14px;
   height: 14px;

@@ -6,20 +6,44 @@ import { segmentTrack } from './geo';
 
 const MIN_POINT_ZOOM = 14;
 const MAX_POINT_MARKERS = 400;
+const MARKER_SIZE = 24;
+const MARKER_SIZE_LIVE = 32;
 
-const carIcon = L.divIcon({
-  className: 'car-marker',
-  html: '<div class="car-dot"></div>',
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
-});
+function normalizeHeading(angle) {
+  const n = Number(angle);
+  if (!Number.isFinite(n)) return null;
+  return ((n % 360) + 360) % 360;
+}
 
-const carIconLive = L.divIcon({
-  className: 'car-marker car-marker-live',
-  html: '<span class="live-ping"></span><span class="live-ping live-ping-delay"></span><span class="car-dot"></span>',
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
+function vehicleMarkerHtml(angle, live) {
+  const heading = normalizeHeading(angle);
+  if (heading == null) {
+    if (live) {
+      return '<span class="live-ping"></span><span class="live-ping live-ping-delay"></span><span class="car-dot"></span>';
+    }
+    return '<div class="car-dot"></div>';
+  }
+
+  const arrow = `<svg class="vehicle-arrow" viewBox="0 0 24 24" aria-hidden="true" style="transform: rotate(${heading}deg)">
+    <path d="M12 2 L18 20 L12 16 L6 20 Z" fill="currentColor" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" />
+  </svg>`;
+
+  if (live) {
+    return `<span class="live-ping"></span><span class="live-ping live-ping-delay"></span><span class="vehicle-body">${arrow}</span>`;
+  }
+  return `<span class="vehicle-body">${arrow}</span>`;
+}
+
+function createVehicleIcon(current, live) {
+  const heading = normalizeHeading(current?.angle);
+  const size = live ? MARKER_SIZE_LIVE : MARKER_SIZE;
+  return L.divIcon({
+    className: `car-marker ${live ? 'car-marker-live' : ''} ${heading != null ? 'car-marker-arrow' : ''}`,
+    html: vehicleMarkerHtml(current?.angle, live),
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
 
 function eventIcon(type, selected) {
   const color = eventColor(type);
@@ -106,7 +130,7 @@ export default function MapView({
 
     trackLayerRef.current = L.layerGroup().addTo(map);
     pointsLayerRef.current = L.layerGroup().addTo(map);
-    markerRef.current = L.marker([45.46, 9.19], { icon: carIcon }).addTo(map);
+    markerRef.current = L.marker([45.46, 9.19], { icon: createVehicleIcon(null, false) }).addTo(map);
     mapRef.current = map;
 
     const resize = () => map.invalidateSize();
@@ -132,6 +156,7 @@ export default function MapView({
         : visible.filter((p) => p.type !== 'move');
 
       for (const p of toShow) {
+        if (!p || p.lat == null || p.lng == null) continue;
         const isMove = p.type === 'move';
         const selected = p.id === selectedRef.current;
         const m = isMove
@@ -226,16 +251,16 @@ export default function MapView({
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker) return;
-    marker.setIcon(isLive ? carIconLive : carIcon);
-  }, [isLive]);
+    marker.setIcon(createVehicleIcon(current, isLive));
+  }, [isLive, current?.angle, current?.lat, current?.lng]);
 
   useEffect(() => {
     const map = mapRef.current;
     const marker = markerRef.current;
-    if (!map || !marker || !current) return;
+    if (!map || !marker || !current || current.lat == null || current.lng == null) return;
 
     marker.setLatLng([current.lat, current.lng]);
-    if (followLive) {
+    if (followLive && current.lat != null && current.lng != null) {
       suppressPanRef.current = true;
       map.setView([current.lat, current.lng], Math.max(map.getZoom(), 14), { animate: true });
       map.once('moveend', () => { suppressPanRef.current = false; });

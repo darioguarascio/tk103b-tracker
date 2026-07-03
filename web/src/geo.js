@@ -19,7 +19,8 @@ function haversineKm(a, b) {
 }
 
 export function isStationaryMove(point) {
-  return point.type === 'move' && Number(point.speed ?? 0) <= 0;
+  if (!point || point.type !== 'move') return false;
+  return Number(point.speed ?? 0) <= 0;
 }
 
 export function isPlausibleStep(prev, curr) {

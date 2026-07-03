@@ -16,6 +16,7 @@ function fromInputValue(val) {
 }
 
 function pointPopup(p) {
+  if (!p) return '';
   return `<strong>${p.type}</strong><br>${new Date(p.gps_time).toLocaleString()}<br>${p.speed ?? 0} km/h · ${Math.round(p.angle ?? 0)}°`;
 }
 
@@ -670,8 +671,12 @@ export default function App() {
                   {fmtRelativeAgo(liveLastSeen || current?.gps_time, liveTick)}
                 </strong>
               </span>
-              <span className="stat">Speed: <strong>{current.speed ?? 0} km/h</strong></span>
-              <span className="stat">Heading: <strong>{Math.round(current.angle ?? 0)}°</strong></span>
+              {current && (
+                <>
+                  <span className="stat">Speed: <strong>{current.speed ?? 0} km/h</strong></span>
+                  <span className="stat">Heading: <strong>{Math.round(current.angle ?? 0)}°</strong></span>
+                </>
+              )}
               <span className="stat">
                 Map: <strong>{liveFollow ? 'Following' : 'Free pan'}</strong>
               </span>
