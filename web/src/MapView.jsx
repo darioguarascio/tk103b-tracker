@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { eventColor } from './api';
-import { segmentTrack } from './geo';
+import { segmentTrack, isPlausibleStep } from './geo';
 
 const MIN_POINT_ZOOM = 14;
 const MAX_POINT_MARKERS = 400;
@@ -69,7 +69,7 @@ function addSegmentLines(layer, a, b) {
   L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(layer);
 }
 
-function drawFullTrack(layer, track) {
+function drawTrackSegments(layer, track) {
   layer.clearLayers();
   const segments = segmentTrack(track);
   for (const seg of segments) {
@@ -80,12 +80,18 @@ function drawFullTrack(layer, track) {
   }
 }
 
+function appendTrackSegment(layer, a, b) {
+  if (!isPlausibleStep(a, b)) return;
+  addSegmentLines(layer, a, b);
+}
+
 export default function MapView({
   track,
   boundsTrack,
   markers,
   current,
   isLive,
+  playing,
   followEnabled,
   onUserMove,
   onRecenter,
@@ -107,12 +113,13 @@ export default function MapView({
   const liveDrawnHeadRef = useRef(null);
   const prevFollowLiveRef = useRef(false);
   const suppressPanRef = useRef(false);
-  const isLiveRef = useRef(isLive);
+  const followRef = useRef(false);
   const onUserMoveRef = useRef(onUserMove);
 
-  isLiveRef.current = isLive;
   onUserMoveRef.current = onUserMove;
-  const followLive = isLive && followEnabled;
+  const followLive = isLive;
+  const followPosition = followEnabled;
+  followRef.current = followPosition;
 
   markersRef.current = markers;
   onSelectRef.current = onSelectPoint;
@@ -179,10 +186,10 @@ export default function MapView({
     map._refreshPoints = refreshPoints;
 
     const onDragStart = () => {
-      if (!suppressPanRef.current && isLiveRef.current) onUserMoveRef.current?.();
+      if (!suppressPanRef.current && followRef.current) onUserMoveRef.current?.();
     };
     const onZoomStart = (e) => {
-      if (!suppressPanRef.current && isLiveRef.current && e.originalEvent) {
+      if (!suppressPanRef.current && followRef.current && e.originalEvent) {
         onUserMoveRef.current?.();
       }
     };
@@ -208,9 +215,13 @@ export default function MapView({
     if (followLive) {
       if (!prevFollowLiveRef.current) {
         trackLayer.clearLayers();
-        liveDrawnLenRef.current = track.length;
+        liveDrawnLenRef.current = 0;
         liveDrawnHeadRef.current = track[0]?.id ?? null;
         prevFollowLiveRef.current = true;
+        for (let i = 1; i < track.length; i++) {
+          appendTrackSegment(trackLayer, track[i - 1], track[i]);
+        }
+        liveDrawnLenRef.current = track.length;
         return;
       }
 
@@ -223,7 +234,7 @@ export default function MapView({
         liveDrawnLenRef.current = 0;
         liveDrawnHeadRef.current = headId;
         for (let i = 1; i < track.length; i++) {
-          addSegmentLines(trackLayer, track[i - 1], track[i]);
+          appendTrackSegment(trackLayer, track[i - 1], track[i]);
         }
         liveDrawnLenRef.current = track.length;
         return;
@@ -231,7 +242,7 @@ export default function MapView({
 
       while (liveDrawnLenRef.current < track.length) {
         const i = liveDrawnLenRef.current;
-        if (i > 0) addSegmentLines(trackLayer, track[i - 1], track[i]);
+        if (i > 0) appendTrackSegment(trackLayer, track[i - 1], track[i]);
         liveDrawnLenRef.current += 1;
       }
       if (liveDrawnHeadRef.current == null) liveDrawnHeadRef.current = headId;
@@ -241,7 +252,7 @@ export default function MapView({
     prevFollowLiveRef.current = false;
     liveDrawnLenRef.current = 0;
     liveDrawnHeadRef.current = null;
-    drawFullTrack(trackLayer, track);
+    drawTrackSegments(trackLayer, track);
   }, [track, followLive]);
 
   useEffect(() => {
@@ -260,12 +271,12 @@ export default function MapView({
     if (!map || !marker || !current || current.lat == null || current.lng == null) return;
 
     marker.setLatLng([current.lat, current.lng]);
-    if (followLive && current.lat != null && current.lng != null) {
+    if (followPosition) {
       suppressPanRef.current = true;
       map.setView([current.lat, current.lng], Math.max(map.getZoom(), 14), { animate: true });
       map.once('moveend', () => { suppressPanRef.current = false; });
     }
-  }, [current, followLive]);
+  }, [current, followPosition]);
 
   const handleRecenter = () => {
     const map = mapRef.current;
@@ -281,7 +292,7 @@ export default function MapView({
   useEffect(() => {
     const map = mapRef.current;
     const fit = boundsTrack ?? track;
-    if (!map || fit.length === 0 || followLive) return;
+    if (!map || fit.length === 0 || followPosition) return;
 
     const key = `${fit.length}:${fit[0]?.id}:${fit[fit.length - 1]?.id}`;
     if (fittedKeyRef.current === key) return;
@@ -295,12 +306,14 @@ export default function MapView({
         map._refreshPoints?.();
       }, 50);
     }
-  }, [boundsTrack, track, followLive]);
+  }, [boundsTrack, track, followPosition]);
+
+  const showRecenter = (isLive || playing) && !followEnabled;
 
   return (
     <div className="map-container">
       <div ref={containerRef} className="map" />
-      {isLive && !followEnabled && (
+      {showRecenter && (
         <button
           type="button"
           className="map-recenter-btn"

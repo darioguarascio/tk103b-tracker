@@ -358,15 +358,16 @@ export default function App() {
   const applyLiveRow = useCallback((row, { notify = true } = {}) => {
     liveSinceIdRef.current = Math.max(liveSinceIdRef.current, row.id);
     if (row.type === 'move') {
+      if (row.lat == null || row.lng == null) return;
+      setTrack((prev) => {
+        const next = [...prev, row];
+        return next.length > 500 ? next.slice(-500) : next;
+      });
       if (isStationaryMove(row)) return;
       const last = liveLastRef.current;
       if (last && !isPlausibleStep(last, row)) return;
       liveLastRef.current = row;
       setLivePos(row);
-      setTrack((prev) => {
-        const next = [...prev, row];
-        return next.length > 500 ? next.slice(-500) : next;
-      });
     } else {
       if (liveEventIdsRef.current.has(row.id)) return;
       liveEventIdsRef.current.add(row.id);
@@ -425,7 +426,7 @@ export default function App() {
           liveSinceIdRef.current = pt.id;
           liveLastRef.current = pt;
           setLivePos(pt);
-          if (pt.type === 'move' && !isStationaryMove(pt) && pt.lat != null && pt.lng != null) {
+          if (pt.type === 'move' && pt.lat != null && pt.lng != null) {
             setTrack([pt]);
           }
         }
@@ -541,6 +542,7 @@ export default function App() {
   };
 
   const tracker = trackers.find((t) => String(t.id) === String(trackerId));
+  const mapFollow = (mode === 'live' || playing) && liveFollow;
 
   const liveLastSeen = useMemo(() => {
     if (mode !== 'live') return null;
@@ -632,7 +634,8 @@ export default function App() {
             markers={mapMarkers}
             current={current}
             isLive={mode === 'live'}
-            followEnabled={liveFollow}
+            playing={playing}
+            followEnabled={mapFollow}
             onUserMove={() => setLiveFollow(false)}
             onRecenter={() => setLiveFollow(true)}
             selectedId={selectedId}
@@ -717,7 +720,12 @@ export default function App() {
                 <button
                   type="button"
                   className="play-btn"
-                  onClick={() => setPlaying((p) => !p)}
+                  onClick={() => {
+                    setPlaying((p) => {
+                      if (!p) setLiveFollow(true);
+                      return !p;
+                    });
+                  }}
                   aria-label={playing ? 'Pause' : 'Play'}
                 >
                   {playing ? '⏸' : '▶'}
@@ -744,6 +752,11 @@ export default function App() {
                 />
                 <span className="stat frame-counter">{frame + 1} / {track.length}</span>
               </div>
+            )}
+            {playing && (
+              <span className="stat">
+                Map: <strong>{liveFollow ? 'Following' : 'Free pan'}</strong>
+              </span>
             )}
             {windowStats && (
               <span className="stat">

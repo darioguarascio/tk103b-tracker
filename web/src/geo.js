@@ -53,21 +53,22 @@ export function filterPlausiblePositions(points) {
 }
 
 export function segmentTrack(points) {
-  const filtered = filterPlausiblePositions(points);
-  if (!filtered.length) return [];
+  const sorted = [...points]
+    .filter((p) => p.lat != null && p.lng != null)
+    .sort((a, b) => new Date(a.gps_time).getTime() - new Date(b.gps_time).getTime());
 
-  const segments = [[filtered[0]]];
-  for (let i = 1; i < filtered.length; i++) {
-    const prev = filtered[i - 1];
-    const curr = filtered[i];
+  if (!sorted.length) return [];
+
+  const segments = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
     const dtMs = new Date(curr.gps_time).getTime() - new Date(prev.gps_time).getTime();
     const dist = haversineKm(prev, curr);
+    const breakSegment = dtMs > 3600000 || dist > 5 || !isPlausibleStep(prev, curr);
 
-    if (dtMs > 3600000 || dist > 5) {
-      segments.push([curr]);
-    } else {
-      segments[segments.length - 1].push(curr);
-    }
+    if (breakSegment) segments.push([curr]);
+    else segments[segments.length - 1].push(curr);
   }
   return segments;
 }

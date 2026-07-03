@@ -80,7 +80,7 @@ router.get('/track', async (req, res) => {
     ORDER BY c.gps_time ASC
     LIMIT 50000
   `, params);
-  res.json(filterPlausiblePositions(rows));
+  res.json(rows);
 });
 
 router.get('/events', async (req, res) => {
@@ -183,12 +183,9 @@ async function fetchLiveRows(trackerId, sinceId) {
   `, params);
 
   const out = [];
-  let lastSent = null;
   for (const row of rows) {
-    if (row.type === 'move' && isStationaryMove(row)) continue;
-    if (row.type === 'move' && lastSent && !isPlausibleStep(lastSent, row)) continue;
+    if (row.lat == null || row.lng == null) continue;
     out.push(row);
-    if (row.lat != null && row.lng != null) lastSent = row;
   }
   return out;
 }
