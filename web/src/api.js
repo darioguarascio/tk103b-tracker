@@ -42,6 +42,30 @@ export function fmtShort(iso) {
   return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+export function fmtRelativeAgo(iso, nowMs = Date.now()) {
+  if (!iso) return '—';
+  const diffMs = nowMs - new Date(iso).getTime();
+  if (diffMs < 0) return 'just now';
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 1) return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  if (days < 7) return `${days}d ago`;
+  return fmtShort(iso);
+}
+
+export function liveUpdateFreshness(iso, nowMs = Date.now()) {
+  if (!iso) return 'unknown';
+  const sec = (nowMs - new Date(iso).getTime()) / 1000;
+  if (sec < 30) return 'fresh';
+  if (sec < 120) return 'aging';
+  return 'stale';
+}
+
 export const EVENT_COLORS = {
   move: '#3b82f6',
   'acc alarm': '#ef4444',
@@ -57,3 +81,9 @@ export function eventColor(type) {
 }
 
 export const ALL_TYPES = ['move', 'acc alarm', 'sensor alarm', 'acc off', 'acc on', 'tracker', 'ac alarm'];
+
+export const LIVE_TOAST_TYPES = new Set(['acc alarm', 'sensor alarm', 'ac alarm']);
+
+export function isLiveToastType(type) {
+  return LIVE_TOAST_TYPES.has(type);
+}

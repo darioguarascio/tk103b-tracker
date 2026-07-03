@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './MapView';
-import { ALL_TYPES, eventColor, fetchJson, fmtShort, fmtTime } from './api';
+import { ALL_TYPES, eventColor, fetchJson, fmtRelativeAgo, fmtShort, fmtTime, isLiveToastType, liveUpdateFreshness } from './api';
 import { DATE_WINDOWS, isPlausibleStep, isStationaryMove, windowRange } from './geo';
 
 function toInputValue(iso) {
@@ -20,6 +20,29 @@ function pointPopup(p) {
 }
 
 const MAX_SIDEBAR_ITEMS = 500;
+const MODE_STORAGE_KEY = 'tk103b-mode';
+const LIVE_FEED_STORAGE_KEY = 'tk103b-live-feed';
+const LIVE_EVENTS_HOURS = 24;
+const MAX_LIVE_EVENTS = 200;
+const MAX_TOASTS = 5;
+
+function loadStoredMode() {
+  try {
+    const stored = localStorage.getItem(MODE_STORAGE_KEY);
+    if (stored === 'live' || stored === 'replay') return stored;
+  } catch {
+    // ignore unavailable storage
+  }
+  return 'replay';
+}
+
+function loadShowLiveFeed() {
+  try {
+    return localStorage.getItem(LIVE_FEED_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
 
 function ToolbarControls({
   trackers, trackerId, setTrackerId, from, setFrom, to, setTo, setDateWindow,
@@ -93,6 +116,70 @@ function ToolbarControls({
   );
 }
 
+function LiveEventStream({
+  items, liveTick, highlightIds, selectedId, selectPoint, onHideFeed,
+}) {
+  const listRef = useRef(null);
+  const prevLenRef = useRef(items.length);
+
+  useEffect(() => {
+    if (items.length > prevLenRef.current && listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+    prevLenRef.current = items.length;
+  }, [items.length]);
+
+  return (
+    <>
+      <div className="live-feed-header">
+        <h3>
+          Live feed <span className="live-dot" aria-hidden="true" />
+        </h3>
+        <span className="live-feed-count">{items.length}</span>
+        <button type="button" className="icon-btn live-feed-hide" onClick={onHideFeed} aria-label="Hide event feed">
+          ✕
+        </button>
+      </div>
+      <div className="event-list live-event-list" ref={listRef}>
+        {items.length === 0 && (
+          <div className="event-item live-event-empty">Waiting for events…</div>
+        )}
+        {items.map((ev) => (
+          <div
+            key={ev.id}
+            className={`event-item live-event-item ${highlightIds.has(ev.id) ? 'live-event-new' : ''} ${selectedId === ev.id ? 'selected' : ''}`}
+            onClick={() => selectPoint(ev)}
+          >
+            <div className="type" style={{ color: eventColor(ev.type) }}>{ev.type}</div>
+            <div className="time">{fmtRelativeAgo(ev.gps_time, liveTick)} · {ev.speed ?? 0} km/h</div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function LiveToasts({ toasts, liveTick, onDismiss }) {
+  if (!toasts.length) return null;
+  return (
+    <div className="toast-stack" aria-live="polite">
+      {toasts.map(({ toastId, event }) => (
+        <div
+          key={toastId}
+          className={`toast toast-${event.type.replace(/\s+/g, '-')}`}
+          style={{ borderLeftColor: eventColor(event.type) }}
+        >
+          <div className="toast-type" style={{ color: eventColor(event.type) }}>{event.type}</div>
+          <div className="toast-meta">{fmtRelativeAgo(event.gps_time, liveTick)}</div>
+          <button type="button" className="toast-dismiss" onClick={() => onDismiss(toastId)} aria-label="Dismiss">
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function EventsList({
   sidebarItems, sidebarVisible, types, track, selectedId, selectPoint, onItemClick,
 }) {
@@ -139,7 +226,7 @@ export default function App() {
   const [types, setTypes] = useState(new Set(['move']));
   const [track, setTrack] = useState([]);
   const [events, setEvents] = useState([]);
-  const [mode, setMode] = useState('replay');
+  const [mode, setMode] = useState(loadStoredMode);
   const [playing, setPlaying] = useState(false);
   const [frame, setFrame] = useState(0);
   const [speed, setSpeed] = useState(4);
@@ -150,8 +237,63 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [liveFollow, setLiveFollow] = useState(true);
+  const [liveTick, setLiveTick] = useState(() => Date.now());
+  const [showLiveFeed, setShowLiveFeed] = useState(loadShowLiveFeed);
+  const [toasts, setToasts] = useState([]);
+  const [highlightIds, setHighlightIds] = useState(() => new Set());
   const liveLastRef = useRef(null);
   const liveSinceIdRef = useRef(0);
+  const liveEventIdsRef = useRef(new Set());
+  const highlightTimersRef = useRef(new Map());
+
+  const addToast = useCallback((event) => {
+    const toastId = `toast-${event.id}-${Date.now()}`;
+    setToasts((prev) => [...prev.slice(-(MAX_TOASTS - 1)), { toastId, event }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.toastId !== toastId));
+    }, 6000);
+  }, []);
+
+  const dismissToast = useCallback((toastId) => {
+    setToasts((prev) => prev.filter((t) => t.toastId !== toastId));
+  }, []);
+
+  const highlightEvent = useCallback((eventId) => {
+    setHighlightIds((prev) => new Set(prev).add(eventId));
+    const existing = highlightTimersRef.current.get(eventId);
+    if (existing) window.clearTimeout(existing);
+    const timer = window.setTimeout(() => {
+      setHighlightIds((prev) => {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      });
+      highlightTimersRef.current.delete(eventId);
+    }, 4000);
+    highlightTimersRef.current.set(eventId, timer);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'live') return undefined;
+    const id = setInterval(() => setLiveTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [mode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MODE_STORAGE_KEY, mode);
+    } catch {
+      // ignore unavailable storage
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LIVE_FEED_STORAGE_KEY, showLiveFeed ? 'true' : 'false');
+    } catch {
+      // ignore unavailable storage
+    }
+  }, [showLiveFeed]);
 
   useEffect(() => {
     fetchJson('/api/trackers').then((rows) => {
@@ -212,7 +354,7 @@ export default function App() {
     if (mode === 'replay') loadData();
   }, [loadData, mode]);
 
-  const applyLiveRow = useCallback((row) => {
+  const applyLiveRow = useCallback((row, { notify = true } = {}) => {
     liveSinceIdRef.current = Math.max(liveSinceIdRef.current, row.id);
     if (row.type === 'move') {
       if (isStationaryMove(row)) return;
@@ -225,9 +367,15 @@ export default function App() {
         return next.length > 500 ? next.slice(-500) : next;
       });
     } else {
-      setEvents((prev) => [row, ...prev].slice(0, 200));
+      if (liveEventIdsRef.current.has(row.id)) return;
+      liveEventIdsRef.current.add(row.id);
+      setEvents((prev) => [row, ...prev].slice(0, MAX_LIVE_EVENTS));
+      if (notify) {
+        highlightEvent(row.id);
+        if (isLiveToastType(row.type)) addToast(row);
+      }
     }
-  }, []);
+  }, [addToast, highlightEvent]);
 
   useEffect(() => {
     if (mode !== 'live' || !trackerId) return;
@@ -235,16 +383,21 @@ export default function App() {
     let cancelled = false;
     liveLastRef.current = null;
     liveSinceIdRef.current = 0;
+    liveEventIdsRef.current = new Set();
     setTrack([]);
     setEvents([]);
     setLivePos(null);
 
     const poll = async () => {
       try {
-        const rows = await fetchJson(
-          `/api/live/poll?tracker_id=${trackerId}&since_id=${liveSinceIdRef.current}`
-        );
+        const [rows, trackerRows] = await Promise.all([
+          fetchJson(
+            `/api/live/poll?tracker_id=${trackerId}&since_id=${liveSinceIdRef.current}`
+          ),
+          fetchJson('/api/trackers'),
+        ]);
         if (cancelled) return;
+        setTrackers(trackerRows);
         for (const row of rows) applyLiveRow(row);
       } catch (err) {
         if (!cancelled) console.error(err);
@@ -253,10 +406,21 @@ export default function App() {
 
     (async () => {
       try {
-        const rows = await fetchJson(`/api/positions/latest?tracker_id=${trackerId}`);
+        const eventTypes = ALL_TYPES.filter((t) => t !== 'move').join(',');
+        const fromIso = new Date(Date.now() - LIVE_EVENTS_HOURS * 3600000).toISOString();
+        const [latestRows, eventRows] = await Promise.all([
+          fetchJson(`/api/positions/latest?tracker_id=${trackerId}`),
+          fetchJson(`/api/events?tracker_id=${trackerId}&from=${encodeURIComponent(fromIso)}&types=${encodeURIComponent(eventTypes)}`),
+        ]);
         if (cancelled) return;
-        if (rows[0]) {
-          const pt = rows[0];
+
+        if (eventRows.length) {
+          setEvents(eventRows.slice(0, MAX_LIVE_EVENTS));
+          liveEventIdsRef.current = new Set(eventRows.map((e) => e.id));
+        }
+
+        if (latestRows[0]) {
+          const pt = latestRows[0];
           liveSinceIdRef.current = pt.id;
           liveLastRef.current = pt;
           setLivePos(pt);
@@ -289,8 +453,9 @@ export default function App() {
   useEffect(() => {
     if (mode === 'live') {
       setPlaying(false);
-      setEventsOpen(false);
       setLiveFollow(true);
+      setToasts([]);
+      setHighlightIds(new Set());
     }
   }, [mode, trackerId]);
 
@@ -306,10 +471,18 @@ export default function App() {
   }, [mode, livePos, track, frame]);
 
   const sidebarItems = useMemo(() => {
-    const items = events.filter((e) => types.has(e.type));
+    const items = events.filter((e) => e.type !== 'move' && types.has(e.type));
     items.sort((a, b) => new Date(b.gps_time) - new Date(a.gps_time));
     return items;
   }, [events, types]);
+
+  const liveStreamItems = useMemo(() => {
+    if (mode !== 'live') return [];
+    return [...events]
+      .filter((e) => e.type !== 'move')
+      .sort((a, b) => new Date(b.gps_time) - new Date(a.gps_time))
+      .slice(0, MAX_LIVE_EVENTS);
+  }, [events, mode]);
 
   const sidebarVisible = useMemo(
     () => sidebarItems.slice(0, MAX_SIDEBAR_ITEMS),
@@ -333,7 +506,7 @@ export default function App() {
         items.push(...tail);
       }
       for (const e of events) {
-        if (types.has(e.type)) items.push(e);
+        if (e.type !== 'move' && e.lat != null && e.lng != null) items.push(e);
       }
     }
     return items;
@@ -367,6 +540,16 @@ export default function App() {
   };
 
   const tracker = trackers.find((t) => String(t.id) === String(trackerId));
+
+  const liveLastSeen = useMemo(() => {
+    if (mode !== 'live') return null;
+    const times = [];
+    if (tracker?.last_seen) times.push(new Date(tracker.last_seen).getTime());
+    if (current?.gps_time) times.push(new Date(current.gps_time).getTime());
+    if (!times.length) return null;
+    return new Date(Math.max(...times)).toISOString();
+  }, [mode, tracker?.last_seen, current?.gps_time]);
+
   const loadedMove = types.has('move') ? track.length : 0;
   const loadedEvents = events.filter((e) => types.has(e.type)).length;
   const loadedTotal = loadedMove + loadedEvents;
@@ -405,7 +588,7 @@ export default function App() {
           onClick={() => setEventsOpen((o) => !o)}
           hidden={mode === 'live'}
         >
-          Events {sidebarItems.length > 0 && `(${sidebarItems.length})`}
+          Events {mode !== 'live' && sidebarItems.length > 0 && `(${sidebarItems.length})`}
         </button>
       </header>
 
@@ -439,8 +622,9 @@ export default function App() {
         </div>
       )}
 
-      <div className={`main ${mode === 'live' ? 'main-live' : ''}`}>
+      <div className={`main ${mode === 'live' ? 'main-live' : ''} ${mode === 'live' && !showLiveFeed ? 'main-live-no-feed' : ''}`}>
         <div className="map-wrap">
+          <LiveToasts toasts={toasts} liveTick={liveTick} onDismiss={dismissToast} />
           <MapView
             track={replayTrack}
             boundsTrack={track}
@@ -456,6 +640,19 @@ export default function App() {
           />
         </div>
 
+        {mode === 'live' && showLiveFeed && (
+          <aside className="sidebar live-feed">
+            <LiveEventStream
+              items={liveStreamItems}
+              liveTick={liveTick}
+              highlightIds={highlightIds}
+              selectedId={selectedId}
+              selectPoint={selectPoint}
+              onHideFeed={() => setShowLiveFeed(false)}
+            />
+          </aside>
+        )}
+
         {mode !== 'live' && (
           <aside className="sidebar desktop-only">
             <EventsList {...eventsProps} />
@@ -463,58 +660,96 @@ export default function App() {
         )}
       </div>
 
-      <footer className="status-bar">
-        {current ? (
-          <>
-            <span className="stat">Time: <strong>{fmtTime(current.gps_time)}</strong></span>
-            <span className="stat">Speed: <strong>{current.speed ?? 0} km/h</strong></span>
-            <span className="stat">Heading: <strong>{Math.round(current.angle ?? 0)}°</strong></span>
-            <span className="stat">Type: <strong>{current.type}</strong></span>
-          </>
+      <footer className={`status-bar ${mode === 'live' ? 'status-bar-live' : ''}`}>
+        {mode === 'live' ? (
+          liveLastSeen || current ? (
+            <>
+              <span className="stat stat-live-primary">
+                Last seen{' '}
+                <strong className={`live-age live-age-${liveUpdateFreshness(liveLastSeen || current?.gps_time, liveTick)}`}>
+                  {fmtRelativeAgo(liveLastSeen || current?.gps_time, liveTick)}
+                </strong>
+              </span>
+              <span className="stat">Speed: <strong>{current.speed ?? 0} km/h</strong></span>
+              <span className="stat">Heading: <strong>{Math.round(current.angle ?? 0)}°</strong></span>
+              <span className="stat">
+                Map: <strong>{liveFollow ? 'Following' : 'Free pan'}</strong>
+              </span>
+              {track.length > 1 && (
+                <span className="stat">
+                  Path: <strong>{track.length} pts</strong>
+                </span>
+              )}
+              <span className="stat">
+                Events: <strong>{liveStreamItems.length}</strong>
+                {!showLiveFeed && (
+                  <>
+                    {' · '}
+                    <button type="button" className="link-btn" onClick={() => setShowLiveFeed(true)}>
+                      Show feed
+                    </button>
+                  </>
+                )}
+              </span>
+            </>
+          ) : (
+            <span className="stat">Waiting for position…</span>
+          )
         ) : (
-          <span className="stat">No position data</span>
-        )}
-        {mode === 'replay' && track.length > 0 && (
-          <div className="replay-controls">
-            <button
-              type="button"
-              className="play-btn"
-              onClick={() => setPlaying((p) => !p)}
-              aria-label={playing ? 'Pause' : 'Play'}
-            >
-              {playing ? '⏸' : '▶'}
-            </button>
-            <select
-              className="speed-select"
-              value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value))}
-              aria-label="Playback speed"
-            >
-              <option value={1}>1x</option>
-              <option value={2}>2x</option>
-              <option value={4}>4x</option>
-              <option value={8}>8x</option>
-              <option value={16}>16x</option>
-            </select>
-            <input
-              className="timeline"
-              type="range"
-              min={0}
-              max={track.length - 1}
-              value={frame}
-              onChange={(e) => { setFrame(Number(e.target.value)); setPlaying(false); }}
-            />
-            <span className="stat frame-counter">{frame + 1} / {track.length}</span>
-          </div>
-        )}
-        {windowStats && (
-          <span className="stat">
-            Window: <strong>{windowTotal.toLocaleString()} pts</strong>
-            {loadedTotal < windowTotal && ` (${loadedTotal.toLocaleString()} loaded)`}
-          </span>
-        )}
-        {tracker?.last_seen && (
-          <span className="stat">Last seen: <strong>{fmtShort(tracker.last_seen)}</strong></span>
+          <>
+            {current ? (
+              <>
+                <span className="stat">Time: <strong>{fmtTime(current.gps_time)}</strong></span>
+                <span className="stat">Speed: <strong>{current.speed ?? 0} km/h</strong></span>
+                <span className="stat">Heading: <strong>{Math.round(current.angle ?? 0)}°</strong></span>
+                <span className="stat">Type: <strong>{current.type}</strong></span>
+              </>
+            ) : (
+              <span className="stat">No position data</span>
+            )}
+            {track.length > 0 && (
+              <div className="replay-controls">
+                <button
+                  type="button"
+                  className="play-btn"
+                  onClick={() => setPlaying((p) => !p)}
+                  aria-label={playing ? 'Pause' : 'Play'}
+                >
+                  {playing ? '⏸' : '▶'}
+                </button>
+                <select
+                  className="speed-select"
+                  value={speed}
+                  onChange={(e) => setSpeed(Number(e.target.value))}
+                  aria-label="Playback speed"
+                >
+                  <option value={1}>1x</option>
+                  <option value={2}>2x</option>
+                  <option value={4}>4x</option>
+                  <option value={8}>8x</option>
+                  <option value={16}>16x</option>
+                </select>
+                <input
+                  className="timeline"
+                  type="range"
+                  min={0}
+                  max={track.length - 1}
+                  value={frame}
+                  onChange={(e) => { setFrame(Number(e.target.value)); setPlaying(false); }}
+                />
+                <span className="stat frame-counter">{frame + 1} / {track.length}</span>
+              </div>
+            )}
+            {windowStats && (
+              <span className="stat">
+                Window: <strong>{windowTotal.toLocaleString()} pts</strong>
+                {loadedTotal < windowTotal && ` (${loadedTotal.toLocaleString()} loaded)`}
+              </span>
+            )}
+            {tracker?.last_seen && (
+              <span className="stat">Last seen: <strong>{fmtShort(tracker.last_seen)}</strong></span>
+            )}
+          </>
         )}
       </footer>
     </div>

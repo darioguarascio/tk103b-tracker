@@ -57,6 +57,53 @@ async function ensureTracker(imei) {
   return res.rows[0].id;
 }
 
+async function recordPing(imei) {
+  await ensureTracker(imei);
+}
+
+function formatLog(ip, message) {
+  const host = ip?.replace(/^::ffff:/, '') || '?';
+  return `[${host}] ${message}`;
+}
+
+function describePacket(data, ip) {
+  const host = ip?.replace(/^::ffff:/, '') || '?';
+
+  if (data.startsWith('##,imei:')) {
+    const imei = extractImei(data.replace('##,', ''));
+    return formatLog(host, `handshake imei=${imei || '?'}`);
+  }
+
+  const imeiOnly = data.match(/^(\d{15});$/);
+  if (imeiOnly) {
+    return formatLog(host, `ping imei=${imeiOnly[1]}`);
+  }
+
+  const imeiShort = data.match(/^imei:(\d{15});?$/);
+  if (imeiShort) {
+    return formatLog(host, `ping imei=${imeiShort[1]}`);
+  }
+
+  if (data.startsWith('imei:')) {
+    const imei = extractImei(data);
+    const parts = data.split(',');
+    const type = parts[1] || '?';
+    const speed = parts[11] ?? '?';
+    const angle = parts[12]?.replace(';', '') ?? '?';
+    let coords = '';
+    try {
+      const { lat, lng } = parseCoords(data);
+      coords = ` lat=${lat.toFixed(5)} lng=${lng.toFixed(5)}`;
+    } catch {
+      coords = ' coords=?';
+    }
+    return formatLog(host, `${type} imei=${imei || '?'} speed=${speed} angle=${angle}${coords}`);
+  }
+
+  const preview = data.replace(/\r?\n/g, ' ').slice(0, 100);
+  return formatLog(host, `unknown (${data.length}b): ${preview}`);
+}
+
 async function insertEvent({ imei, ip, speed, angle, type, original, lat, lng }) {
   const trackerId = await ensureTracker(imei);
   const gpsTime = parseGpsTime(original);
@@ -68,20 +115,45 @@ async function insertEvent({ imei, ip, speed, angle, type, original, lat, lng })
 }
 
 const server = net.createServer((c) => {
-  logger.debug('client connected');
-  c.on('end', () => logger.debug('client disconnected'));
+  const ip = c.remoteAddress;
+  logger.debug(formatLog(ip, 'client connected'));
+  c.on('end', () => logger.debug(formatLog(ip, 'client disconnected')));
 
   c.on('data', async (buf) => {
-    const data = buf.toString();
-    logger.info(JSON.stringify({ ip: c.remoteAddress, data }));
+    const data = buf.toString().trim();
+    logger.info(describePacket(data, ip));
 
     if (data.startsWith('##,imei:')) {
+      const imei = extractImei(data.replace('##,', ''));
+      if (imei) {
+        try {
+          await recordPing(imei);
+        } catch (e) {
+          logger.error(formatLog(ip, `ping failed imei=${imei}: ${e.message}`));
+        }
+      }
       c.write('LOAD\r\n');
       return;
     }
 
-    const imeiOnly = data.match(/^(\d{15});$/);
+    const imeiOnly = data.match(/^(\d{15});?$/);
     if (imeiOnly) {
+      try {
+        await recordPing(imeiOnly[1]);
+      } catch (e) {
+        logger.error(formatLog(ip, `ping failed imei=${imeiOnly[1]}: ${e.message}`));
+      }
+      c.write('ON\r\n');
+      return;
+    }
+
+    const imeiShort = data.match(/^imei:(\d{15});?$/);
+    if (imeiShort) {
+      try {
+        await recordPing(imeiShort[1]);
+      } catch (e) {
+        logger.error(formatLog(ip, `ping failed imei=${imeiShort[1]}: ${e.message}`));
+      }
       c.write('ON\r\n');
       return;
     }
@@ -93,7 +165,7 @@ const server = net.createServer((c) => {
         const { lat, lng } = parseCoords(data);
         await insertEvent({
           imei,
-          ip: c.remoteAddress,
+          ip,
           speed: parseFloat(s[11]),
           angle: parseFloat(s[12].replace(';', '')),
           type: s[1],
@@ -102,12 +174,12 @@ const server = net.createServer((c) => {
           lng,
         });
       } catch (e) {
-        logger.error(e.message);
+        logger.error(formatLog(ip, `insert failed: ${e.message}`));
       }
       return;
     }
 
-    logger.debug(`unknown packet: ${data.slice(0, 80)}`);
+    logger.debug(formatLog(ip, `ignored packet (${data.length}b)`));
   });
 });
 

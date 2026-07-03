@@ -9,7 +9,7 @@ const EVENT_TYPES = ['move', 'acc alarm', 'sensor alarm', 'acc off', 'acc on', '
 router.get('/trackers', async (_req, res) => {
   const { rows } = await query(`
     SELECT t.id, t.imei, t.label, t.updated_at,
-           c.gps_time AS last_seen,
+           GREATEST(t.updated_at, COALESCE(c.gps_time, t.updated_at)) AS last_seen,
            ST_X(c.coords) AS lng, ST_Y(c.coords) AS lat,
            c.type AS last_type, c.speed AS last_speed, c.angle AS last_angle
     FROM tracker t
