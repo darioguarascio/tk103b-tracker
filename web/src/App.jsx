@@ -5,7 +5,7 @@ import {
   DATE_WINDOWS,
   isPlausibleStep,
   isStationaryMove,
-  replayPlaybackIndices,
+  advancePlaybackFrame,
   windowRange,
 } from './geo';
 
@@ -189,13 +189,47 @@ function LiveToasts({ toasts, liveTick, onDismiss }) {
 }
 
 function EventsList({
-  sidebarItems, sidebarVisible, types, track, selectedId, selectPoint, onItemClick,
+  sidebarItems,
+  sidebarVisible,
+  types,
+  track,
+  selectedId,
+  selectedPoint,
+  selectPoint,
+  onItemClick,
+  mode,
+  replayThrough,
 }) {
+  const isReplay = mode === 'replay';
   return (
     <>
-      <h3>Events ({sidebarItems.length})</h3>
-      {types.has('move') && track.length > 0 && (
+      <h3>{isReplay ? 'Replay' : 'Events'} ({sidebarItems.length})</h3>
+      {isReplay && replayThrough && (
+        <div className="sidebar-summary">Through {fmtShort(replayThrough)}</div>
+      )}
+      {!isReplay && types.has('move') && track.length > 0 && (
         <div className="sidebar-summary">{track.length.toLocaleString()} move points on map</div>
+      )}
+      {selectedPoint && (
+        <div className="event-detail">
+          <div className="event-detail-type" style={{ color: eventColor(selectedPoint.type) }}>
+            {selectedPoint.type}
+          </div>
+          <dl className="event-detail-grid">
+            <dt>Time</dt>
+            <dd>{fmtTime(selectedPoint.gps_time)}</dd>
+            <dt>Speed</dt>
+            <dd>{selectedPoint.speed ?? 0} km/h</dd>
+            <dt>Heading</dt>
+            <dd>{Math.round(selectedPoint.angle ?? 0)}°</dd>
+            {selectedPoint.lat != null && selectedPoint.lng != null && (
+              <>
+                <dt>Position</dt>
+                <dd>{Number(selectedPoint.lat).toFixed(5)}, {Number(selectedPoint.lng).toFixed(5)}</dd>
+              </>
+            )}
+          </dl>
+        </div>
       )}
       <div className="event-list">
         {sidebarVisible.map((ev) => (
@@ -205,14 +239,22 @@ function EventsList({
             onClick={() => { selectPoint(ev); onItemClick?.(); }}
           >
             <div className="type" style={{ color: eventColor(ev.type) }}>{ev.type}</div>
-            <div className="time">{fmtShort(ev.gps_time)} · {ev.speed ?? 0} km/h</div>
+            <div className="time">
+              {fmtShort(ev.gps_time)}
+              {' · '}
+              {ev.speed ?? 0} km/h
+              {ev.type === 'move' ? ` · ${Math.round(ev.angle ?? 0)}°` : ''}
+            </div>
           </div>
         ))}
-        {sidebarItems.length === 0 && !types.has('move') && (
-          <div className="event-item" style={{ color: 'var(--muted)' }}>No events in range</div>
-        )}
-        {sidebarItems.length === 0 && types.has('move') && (
-          <div className="event-item" style={{ color: 'var(--muted)' }}>No events — track on map</div>
+        {sidebarItems.length === 0 && (
+          <div className="event-item" style={{ color: 'var(--muted)' }}>
+            {isReplay
+              ? 'Nothing replayed yet — press play or scrub the timeline'
+              : (types.has('move') && track.length > 0
+                ? 'No events — track on map'
+                : 'No events in range')}
+          </div>
         )}
         {sidebarItems.length > MAX_SIDEBAR_ITEMS && (
           <div className="event-item" style={{ color: 'var(--muted)' }}>
@@ -457,32 +499,25 @@ export default function App() {
     };
   }, [mode, trackerId, applyLiveRow]);
 
-  const playbackSteps = useMemo(
-    () => (mode === 'live' ? [] : replayPlaybackIndices(track)),
-    [mode, track]
-  );
-
-  const trackFrame = useMemo(() => {
-    if (mode === 'live') return Math.max(0, track.length - 1);
-    if (!playbackSteps.length) return 0;
-    return playbackSteps[Math.min(frame, playbackSteps.length - 1)] ?? 0;
-  }, [mode, track.length, playbackSteps, frame]);
+  useEffect(() => {
+    if (mode === 'live' || track.length === 0) return;
+    setFrame((f) => Math.min(f, track.length - 1));
+  }, [mode, track.length]);
 
   useEffect(() => {
-    if (mode === 'live') return;
-    setFrame((f) => Math.min(f, Math.max(0, playbackSteps.length - 1)));
-  }, [mode, playbackSteps.length]);
-
-  useEffect(() => {
-    if (!playing || playbackSteps.length === 0) return;
+    if (!playing || track.length === 0) return;
     const ms = Math.max(50, 500 / speed);
     const id = setInterval(() => {
-      setFrame((f) => (
-        f >= playbackSteps.length - 1 ? (setPlaying(false), f) : f + 1
-      ));
+      setFrame((f) => {
+        if (f >= track.length - 1) {
+          setPlaying(false);
+          return f;
+        }
+        return advancePlaybackFrame(track, f);
+      });
     }, ms);
     return () => clearInterval(id);
-  }, [playing, playbackSteps.length, speed]);
+  }, [playing, track, speed]);
 
   useEffect(() => {
     if (mode === 'live') {
@@ -494,21 +529,43 @@ export default function App() {
   }, [mode, trackerId]);
 
   const replayTrack = useMemo(
-    () => (mode === 'live' ? track : track.slice(0, trackFrame + 1)),
-    [mode, track, trackFrame]
+    () => (mode === 'live' ? track : track.slice(0, frame + 1)),
+    [mode, track, frame]
   );
 
   const current = useMemo(() => {
     if (mode === 'live' && livePos) return livePos;
     if (track.length === 0) return null;
-    return track[trackFrame] ?? null;
-  }, [mode, livePos, track, trackFrame]);
+    return track[Math.min(frame, track.length - 1)] ?? null;
+  }, [mode, livePos, track, frame]);
 
   const sidebarItems = useMemo(() => {
+    if (mode === 'replay' && current?.gps_time) {
+      const through = new Date(current.gps_time).getTime();
+      const items = [];
+      if (types.has('move')) {
+        for (let i = 0; i <= frame && i < track.length; i++) {
+          items.push(track[i]);
+        }
+      }
+      for (const e of events) {
+        if (e.type !== 'move' && types.has(e.type)) items.push(e);
+      }
+      return items
+        .filter((e) => new Date(e.gps_time).getTime() <= through)
+        .sort((a, b) => new Date(b.gps_time) - new Date(a.gps_time));
+    }
     const items = events.filter((e) => e.type !== 'move' && types.has(e.type));
     items.sort((a, b) => new Date(b.gps_time) - new Date(a.gps_time));
     return items;
-  }, [events, types]);
+  }, [mode, current?.gps_time, track, frame, events, types]);
+
+  const selectedPoint = useMemo(() => {
+    if (selectedId == null) return null;
+    return track.find((p) => p.id === selectedId)
+      ?? events.find((e) => e.id === selectedId)
+      ?? null;
+  }, [selectedId, track, events]);
 
   const liveStreamItems = useMemo(() => {
     if (mode !== 'live') return [];
@@ -528,8 +585,8 @@ export default function App() {
     if (mode !== 'live' && current) {
       const t = new Date(current.gps_time).getTime();
       if (types.has('move')) {
-        const start = Math.max(0, trackFrame - 200);
-        for (let i = start; i <= trackFrame && i < track.length; i++) {
+        const start = Math.max(0, frame - 200);
+        for (let i = start; i <= frame && i < track.length; i++) {
           const pt = track[i];
           if (pt?.lat != null && pt?.lng != null) items.push(pt);
         }
@@ -554,25 +611,21 @@ export default function App() {
       }
     }
     return items;
-  }, [track, events, types, mode, current, trackFrame]);
+  }, [track, events, types, mode, current, frame]);
 
   const selectPoint = useCallback((point) => {
     setSelectedId(point.id);
-    if (mode !== 'replay' || !playbackSteps.length) return;
+    setPlaying(false);
+    if (mode !== 'replay' || track.length === 0) return;
     let trackIdx = -1;
     if (point.type === 'move') {
       trackIdx = track.findIndex((p) => p.id === point.id);
     } else {
       trackIdx = track.findIndex((p) => p.gps_time >= point.gps_time);
+      if (trackIdx < 0) trackIdx = track.length - 1;
     }
-    if (trackIdx < 0) return;
-    let playbackFrame = 0;
-    for (let k = 0; k < playbackSteps.length; k++) {
-      if (playbackSteps[k] <= trackIdx) playbackFrame = k;
-      else break;
-    }
-    setFrame(playbackFrame);
-  }, [mode, track, playbackSteps]);
+    if (trackIdx >= 0) setFrame(trackIdx);
+  }, [mode, track]);
 
   const toggleType = (type) => {
     setTypes((prev) => {
@@ -614,7 +667,15 @@ export default function App() {
   };
 
   const eventsProps = {
-    sidebarItems, sidebarVisible, types, track, selectedId, selectPoint,
+    sidebarItems,
+    sidebarVisible,
+    types,
+    track,
+    selectedId,
+    selectedPoint,
+    selectPoint,
+    mode,
+    replayThrough: mode === 'replay' ? current?.gps_time : null,
     onItemClick: () => setEventsOpen(false),
   };
 
@@ -688,6 +749,7 @@ export default function App() {
             onUserMove={() => setLiveFollow(false)}
             onRecenter={() => setLiveFollow(true)}
             selectedId={selectedId}
+            selectedPoint={selectedPoint}
             onSelectPoint={selectPoint}
             pointPopup={pointPopup}
           />
@@ -795,13 +857,11 @@ export default function App() {
                   className="timeline"
                   type="range"
                   min={0}
-                  max={Math.max(0, playbackSteps.length - 1)}
+                  max={Math.max(0, track.length - 1)}
                   value={frame}
                   onChange={(e) => { setFrame(Number(e.target.value)); setPlaying(false); }}
                 />
-                <span className="stat frame-counter" title={`${track.length} GPS points`}>
-                  {frame + 1} / {playbackSteps.length}
-                </span>
+                <span className="stat frame-counter">{frame + 1} / {track.length}</span>
               </div>
             )}
             {playing && (

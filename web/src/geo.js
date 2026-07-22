@@ -23,36 +23,16 @@ export function isStationaryMove(point) {
   return Number(point.speed ?? 0) <= 0;
 }
 
-/** Replay steps: one frame per moving point; parked runs collapse to the next moving fix. */
-export function replayPlaybackIndices(points) {
-  if (!points?.length) return [0];
-  const out = [0];
-  let i = 0;
-  while (i < points.length - 1) {
-    if (isStationaryMove(points[i])) {
-      let j = i + 1;
-      while (j < points.length && isStationaryMove(points[j])) j += 1;
-      if (j >= points.length) {
-        if (out[out.length - 1] !== points.length - 1) out.push(points.length - 1);
-        break;
-      }
-      i = j;
-      out.push(i);
-    } else {
-      i += 1;
-      if (isStationaryMove(points[i])) {
-        let j = i + 1;
-        while (j < points.length && isStationaryMove(points[j])) j += 1;
-        if (j >= points.length) {
-          if (out[out.length - 1] !== points.length - 1) out.push(points.length - 1);
-          break;
-        }
-        i = j;
-      }
-      out.push(i);
-    }
+/** Next frame while playing — jumps through zero-speed runs in one step. */
+export function advancePlaybackFrame(track, frame) {
+  if (!track?.length || frame >= track.length - 1) return frame;
+  let next = frame + 1;
+  if (isStationaryMove(track[next])) {
+    while (next < track.length && isStationaryMove(track[next])) next++;
+    if (next >= track.length) return track.length - 1;
+    return next;
   }
-  return out;
+  return next;
 }
 
 export function isPlausibleStep(prev, curr) {

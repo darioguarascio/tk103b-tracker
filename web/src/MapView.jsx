@@ -99,6 +99,7 @@ export default function MapView({
   onUserMove,
   onRecenter,
   selectedId,
+  selectedPoint,
   onSelectPoint,
   pointPopup,
 }) {
@@ -182,6 +183,12 @@ export default function MapView({
         m.bindPopup(popupRef.current(p));
         m.on('click', () => onSelectRef.current?.(p));
         m.addTo(layer);
+        if (p.id === selectedRef.current) {
+          m.openPopup();
+          if (!followRef.current) {
+            map.panTo([p.lat, p.lng], { animate: true });
+          }
+        }
       }
     };
 
@@ -261,6 +268,14 @@ export default function MapView({
   useEffect(() => {
     mapRef.current?._refreshPoints?.();
   }, [markers, selectedId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || followPosition || !selectedPoint || selectedPoint.lat == null || selectedPoint.lng == null) {
+      return;
+    }
+    map.panTo([selectedPoint.lat, selectedPoint.lng], { animate: true });
+  }, [selectedPoint?.id, followPosition, selectedPoint?.lat, selectedPoint?.lng]);
 
   useEffect(() => {
     const marker = markerRef.current;

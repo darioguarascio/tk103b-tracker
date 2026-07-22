@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isPlausibleStep,
   isStationaryMove,
-  replayPlaybackIndices,
+  advancePlaybackFrame,
   segmentTrack,
   windowRange,
 } from './geo';
@@ -27,19 +27,24 @@ describe('isStationaryMove', () => {
   });
 });
 
-describe('replayPlaybackIndices', () => {
-  it('collapses parked runs', () => {
+describe('advancePlaybackFrame', () => {
+  it('skips parked runs in one step while playing', () => {
     const track = [
       move(1, '2026-01-01T10:00:00Z', 45, 9, 30),
       move(2, '2026-01-01T10:01:00Z', 45, 9, 0),
       move(3, '2026-01-01T10:02:00Z', 45, 9, 0),
       move(4, '2026-01-01T10:03:00Z', 45.01, 9, 25),
     ];
-    expect(replayPlaybackIndices(track)).toEqual([0, 3]);
+    expect(advancePlaybackFrame(track, 0)).toBe(3);
+    expect(advancePlaybackFrame(track, 1)).toBe(3);
   });
 
-  it('returns [0] for a single point', () => {
-    expect(replayPlaybackIndices([move(1, '2026-01-01T10:00:00Z', 45, 9)])).toEqual([0]);
+  it('steps one moving fix at a time', () => {
+    const track = [
+      move(1, '2026-01-01T10:00:00Z', 45, 9, 30),
+      move(2, '2026-01-01T10:01:00Z', 45.01, 9, 25),
+    ];
+    expect(advancePlaybackFrame(track, 0)).toBe(1);
   });
 });
 

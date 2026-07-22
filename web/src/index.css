@@ -364,6 +364,38 @@ html, body, #root {
   border-bottom: 1px solid var(--border);
 }
 
+.event-detail {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.event-detail-type {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.event-detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 12px;
+  margin: 0;
+}
+
+.event-detail-grid dt {
+  color: var(--muted);
+  margin: 0;
+}
+
+.event-detail-grid dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .event-list {
   overflow-y: auto;
   flex: 1;
