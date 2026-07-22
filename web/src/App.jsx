@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './MapView';
 import { ALL_TYPES, eventColor, fetchJson, fmtRelativeAgo, fmtShort, fmtTime, isLiveToastType, liveUpdateFreshness } from './api';
-import { DATE_WINDOWS, isPlausibleStep, isStationaryMove, windowRange } from './geo';
+import {
+  DATE_WINDOWS,
+  isPlausibleStep,
+  isStationaryMove,
+  replayPlaybackIndices,
+  windowRange,
+} from './geo';
 
 function toInputValue(iso) {
   if (!iso) return '';
@@ -26,6 +32,7 @@ const LIVE_FEED_STORAGE_KEY = 'tk103b-live-feed';
 const LIVE_EVENTS_HOURS = 24;
 const MAX_LIVE_EVENTS = 200;
 const MAX_TOASTS = 5;
+const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || 'dev';
 
 function loadStoredMode() {
   try {
@@ -242,6 +249,7 @@ export default function App() {
   const [showLiveFeed, setShowLiveFeed] = useState(loadShowLiveFeed);
   const [toasts, setToasts] = useState([]);
   const [highlightIds, setHighlightIds] = useState(() => new Set());
+  const [appVersion, setAppVersion] = useState(BUILD_VERSION);
   const liveLastRef = useRef(null);
   const liveSinceIdRef = useRef(0);
   const liveEventIdsRef = useRef(new Set());
@@ -295,6 +303,12 @@ export default function App() {
       // ignore unavailable storage
     }
   }, [showLiveFeed]);
+
+  useEffect(() => {
+    fetchJson('/api/health')
+      .then((r) => { if (r.version) setAppVersion(r.version); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchJson('/api/trackers').then((rows) => {
@@ -443,14 +457,32 @@ export default function App() {
     };
   }, [mode, trackerId, applyLiveRow]);
 
+  const playbackSteps = useMemo(
+    () => (mode === 'live' ? [] : replayPlaybackIndices(track)),
+    [mode, track]
+  );
+
+  const trackFrame = useMemo(() => {
+    if (mode === 'live') return Math.max(0, track.length - 1);
+    if (!playbackSteps.length) return 0;
+    return playbackSteps[Math.min(frame, playbackSteps.length - 1)] ?? 0;
+  }, [mode, track.length, playbackSteps, frame]);
+
   useEffect(() => {
-    if (!playing || track.length === 0) return;
+    if (mode === 'live') return;
+    setFrame((f) => Math.min(f, Math.max(0, playbackSteps.length - 1)));
+  }, [mode, playbackSteps.length]);
+
+  useEffect(() => {
+    if (!playing || playbackSteps.length === 0) return;
     const ms = Math.max(50, 500 / speed);
     const id = setInterval(() => {
-      setFrame((f) => (f >= track.length - 1 ? (setPlaying(false), f) : f + 1));
+      setFrame((f) => (
+        f >= playbackSteps.length - 1 ? (setPlaying(false), f) : f + 1
+      ));
     }, ms);
     return () => clearInterval(id);
-  }, [playing, track.length, speed]);
+  }, [playing, playbackSteps.length, speed]);
 
   useEffect(() => {
     if (mode === 'live') {
@@ -462,15 +494,15 @@ export default function App() {
   }, [mode, trackerId]);
 
   const replayTrack = useMemo(
-    () => (mode === 'live' ? track : track.slice(0, frame + 1)),
-    [mode, track, frame]
+    () => (mode === 'live' ? track : track.slice(0, trackFrame + 1)),
+    [mode, track, trackFrame]
   );
 
   const current = useMemo(() => {
     if (mode === 'live' && livePos) return livePos;
     if (track.length === 0) return null;
-    return track[Math.min(frame, track.length - 1)];
-  }, [mode, livePos, track, frame]);
+    return track[trackFrame] ?? null;
+  }, [mode, livePos, track, trackFrame]);
 
   const sidebarItems = useMemo(() => {
     const items = events.filter((e) => e.type !== 'move' && types.has(e.type));
@@ -496,34 +528,51 @@ export default function App() {
     if (mode !== 'live' && current) {
       const t = new Date(current.gps_time).getTime();
       if (types.has('move')) {
-        const start = Math.max(0, frame - 200);
-        for (let i = start; i <= frame && i < track.length; i++) items.push(track[i]);
+        const start = Math.max(0, trackFrame - 200);
+        for (let i = start; i <= trackFrame && i < track.length; i++) {
+          const pt = track[i];
+          if (pt?.lat != null && pt?.lng != null) items.push(pt);
+        }
       }
       for (const e of events) {
-        if (types.has(e.type) && new Date(e.gps_time).getTime() <= t) items.push(e);
+        if (
+          types.has(e.type)
+          && e.lat != null
+          && e.lng != null
+          && new Date(e.gps_time).getTime() <= t
+        ) items.push(e);
       }
     } else {
       if (types.has('move')) {
         const tail = track.length > 300 ? track.slice(-300) : track;
-        items.push(...tail);
+        for (const pt of tail) {
+          if (pt?.lat != null && pt?.lng != null) items.push(pt);
+        }
       }
       for (const e of events) {
         if (e.type !== 'move' && e.lat != null && e.lng != null) items.push(e);
       }
     }
     return items;
-  }, [track, events, types, mode, current, frame]);
+  }, [track, events, types, mode, current, trackFrame]);
 
   const selectPoint = useCallback((point) => {
     setSelectedId(point.id);
-    if (mode === 'replay' && point.type === 'move') {
-      const idx = track.findIndex((p) => p.id === point.id);
-      if (idx >= 0) setFrame(idx);
-    } else if (mode === 'replay') {
-      const idx = track.findIndex((p) => p.gps_time >= point.gps_time);
-      if (idx >= 0) setFrame(idx);
+    if (mode !== 'replay' || !playbackSteps.length) return;
+    let trackIdx = -1;
+    if (point.type === 'move') {
+      trackIdx = track.findIndex((p) => p.id === point.id);
+    } else {
+      trackIdx = track.findIndex((p) => p.gps_time >= point.gps_time);
     }
-  }, [mode, track]);
+    if (trackIdx < 0) return;
+    let playbackFrame = 0;
+    for (let k = 0; k < playbackSteps.length; k++) {
+      if (playbackSteps[k] <= trackIdx) playbackFrame = k;
+      else break;
+    }
+    setFrame(playbackFrame);
+  }, [mode, track, playbackSteps]);
 
   const toggleType = (type) => {
     setTypes((prev) => {
@@ -746,11 +795,13 @@ export default function App() {
                   className="timeline"
                   type="range"
                   min={0}
-                  max={track.length - 1}
+                  max={Math.max(0, playbackSteps.length - 1)}
                   value={frame}
                   onChange={(e) => { setFrame(Number(e.target.value)); setPlaying(false); }}
                 />
-                <span className="stat frame-counter">{frame + 1} / {track.length}</span>
+                <span className="stat frame-counter" title={`${track.length} GPS points`}>
+                  {frame + 1} / {playbackSteps.length}
+                </span>
               </div>
             )}
             {playing && (
@@ -769,6 +820,7 @@ export default function App() {
             )}
           </>
         )}
+        <span className="app-version" title="Release">{appVersion}</span>
       </footer>
     </div>
   );

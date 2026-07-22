@@ -10,11 +10,12 @@ const PORT = process.env.PORT || 3001;
 app.use(express.json());
 
 app.get('/api/health', async (_req, res) => {
+  const version = process.env.APP_VERSION || 'dev';
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true });
+    res.json({ ok: true, version });
   } catch (err) {
-    res.status(503).json({ ok: false, error: err.message });
+    res.status(503).json({ ok: false, version, error: err.message });
   }
 });
 

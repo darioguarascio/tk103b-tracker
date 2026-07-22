@@ -1,4 +1,8 @@
+ARG APP_VERSION=dev
+
 FROM node:20-alpine AS web-build
+ARG APP_VERSION=dev
+ENV VITE_APP_VERSION=$APP_VERSION
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY web/package.json ./web/
@@ -8,6 +12,8 @@ COPY web ./web
 RUN npm run build -w web
 
 FROM node:20-alpine
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 WORKDIR /app
 RUN apk add --no-cache wget
 COPY package.json package-lock.json* ./

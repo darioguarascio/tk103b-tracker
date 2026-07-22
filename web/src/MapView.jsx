@@ -57,13 +57,16 @@ function eventIcon(type, selected) {
 }
 
 function pointsInBounds(points, bounds, max) {
-  const inside = points.filter((p) => bounds.contains([p.lat, p.lng]));
+  const inside = points.filter(
+    (p) => p && p.lat != null && p.lng != null && bounds.contains([p.lat, p.lng])
+  );
   if (inside.length <= max) return inside;
   const step = Math.ceil(inside.length / max);
   return inside.filter((_, i) => i % step === 0);
 }
 
 function addSegmentLines(layer, a, b) {
+  if (!a || !b || a.lat == null || a.lng == null || b.lat == null || b.lng == null) return;
   const latlngs = [[a.lat, a.lng], [b.lat, b.lng]];
   L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(layer);
   L.polyline(latlngs, { color: '#60a5fa', weight: 2, opacity: 0.4, dashArray: '4 8' }).addTo(layer);
@@ -298,7 +301,11 @@ export default function MapView({
     if (fittedKeyRef.current === key) return;
     fittedKeyRef.current = key;
 
-    const bounds = L.latLngBounds(fit.map((p) => [p.lat, p.lng]));
+    const latlngs = fit
+      .filter((p) => p && p.lat != null && p.lng != null)
+      .map((p) => [p.lat, p.lng]);
+    if (latlngs.length === 0) return;
+    const bounds = L.latLngBounds(latlngs);
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
       setTimeout(() => {

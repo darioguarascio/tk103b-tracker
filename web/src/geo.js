@@ -23,6 +23,38 @@ export function isStationaryMove(point) {
   return Number(point.speed ?? 0) <= 0;
 }
 
+/** Replay steps: one frame per moving point; parked runs collapse to the next moving fix. */
+export function replayPlaybackIndices(points) {
+  if (!points?.length) return [0];
+  const out = [0];
+  let i = 0;
+  while (i < points.length - 1) {
+    if (isStationaryMove(points[i])) {
+      let j = i + 1;
+      while (j < points.length && isStationaryMove(points[j])) j += 1;
+      if (j >= points.length) {
+        if (out[out.length - 1] !== points.length - 1) out.push(points.length - 1);
+        break;
+      }
+      i = j;
+      out.push(i);
+    } else {
+      i += 1;
+      if (isStationaryMove(points[i])) {
+        let j = i + 1;
+        while (j < points.length && isStationaryMove(points[j])) j += 1;
+        if (j >= points.length) {
+          if (out[out.length - 1] !== points.length - 1) out.push(points.length - 1);
+          break;
+        }
+        i = j;
+      }
+      out.push(i);
+    }
+  }
+  return out;
+}
+
 export function isPlausibleStep(prev, curr) {
   const dist = haversineKm(prev, curr);
   const dtMs = new Date(curr.gps_time).getTime() - new Date(prev.gps_time).getTime();

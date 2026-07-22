@@ -395,6 +395,15 @@ html, body, #root {
 .status-bar .stat { color: var(--muted); }
 .status-bar .stat strong { color: var(--text); }
 
+.app-version {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-bar-live .stat-live-primary strong { font-variant-numeric: tabular-nums; }
 .live-age-fresh { color: var(--success) !important; }
 .live-age-aging { color: var(--warn) !important; }
